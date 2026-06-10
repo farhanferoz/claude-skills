@@ -25,6 +25,15 @@
       "source": "./plugins/deep-research-tiered"
     },
     {
+      "name": "review-suite",
+      "description": "Tiered local code review (light -> critical): simplify -> bug/security finders -> false-positive verification -> external second opinion. Bundles tiered-review + find-bugs, fp-check, differential-review, security-review, second-opinion.",
+      "author": {
+        "name": "Farhan Feroz"
+      },
+      "category": "productivity",
+      "source": "./plugins/review-suite"
+    },
+    {
       "name": "playwright-agents",
       "description": "Wrap Playwright's first-party test agents: pin model/effort, wire the Test MCP into the project's .mcp.json, and verify generated specs with a real test run.",
       "author": {
