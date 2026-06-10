@@ -16,6 +16,15 @@
       "source": "./plugins/session-continuity"
     },
     {
+      "name": "deep-research-tiered",
+      "description": "Cost-tiered deep research: decompose in-session, approve scope, then a Sonnet-tiered fan-out (search -> fetch -> three-way verify with Opus appeals -> synthesize) producing a cited report. ~10x cheaper than all-Opus deep research; bundles the six dr-* agents it drives.",
+      "author": {
+        "name": "Farhan Feroz"
+      },
+      "category": "research",
+      "source": "./plugins/deep-research-tiered"
+    },
+    {
       "name": "playwright-agents",
       "description": "Wrap Playwright's first-party test agents: pin model/effort, wire the Test MCP into the project's .mcp.json, and verify generated specs with a real test run.",
       "author": {
