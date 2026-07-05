@@ -1,5 +1,5 @@
 {
-  "description": "On every session start (including after /clear), read RESUME.md back into context.",
+  "description": "On every session start (including after /clear), read RESUME.md back into context, clear a stale --final marker on a new session, and flag RESUME/memory maintenance.",
   "hooks": {
     "SessionStart": [
       {
