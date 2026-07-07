@@ -1,6 +1,6 @@
 {
   "name": "review-suite",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Tiered local code review: match review depth to change risk (light -> critical), running simplify -> bug/security finders -> false-positive verification -> external second opinion. Bundles tiered-review plus the workers it drives: find-bugs, fp-check, differential-review, security-review, second-opinion.",
   "author": {
     "name": "Farhan Feroz"

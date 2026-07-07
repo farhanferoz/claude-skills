@@ -71,17 +71,67 @@ One `AskUserQuestion`, skip questions the user already answered inline.
 **Focus:**
 - General / Security & auth / Performance / Error handling
 
-### 3. Build prompt + diff
+### 3a. Build the diff
 
 ```bash
 DIFF=/tmp/second-opinion-diff.txt
 PROMPT=/tmp/second-opinion-prompt.txt
 git diff <scope> > "$DIFF"  # plus untracked if uncommitted
+[ -s "$DIFF" ] || { echo "Empty diff — nothing to review."; exit 1; }
+```
 
-# Stop if empty. HARD CAP ~1500 lines: agy/gemini truncate large stdin and
-# then improvise (read disk, roam) instead of reviewing. Over the cap, split
-# into multiple smaller invocations rather than sending one giant prompt.
+### 3b. Enforce the line cap (do not just warn)
 
+agy/gemini truncate large stdin and then improvise (read disk, roam) instead of
+reviewing, so the ~1500-line cap is a **hard gate**, not a comment:
+
+```bash
+LINES=$(wc -l < "$DIFF")
+if [ "$LINES" -gt 1500 ]; then
+  echo "Diff is $LINES lines (cap 1500). Sending it whole would be truncated + improvised."
+  echo "STOP: narrow the scope (a file subrange or single commit) or split into"
+  echo "multiple <1500-line invocations. Do not send this as one prompt."
+  exit 1
+fi
+```
+
+If this fires, **stop** and tell the user which scopes/splits are available — do
+**not** fall through to invoking the CLI on a truncated prompt.
+
+### 3c. Secret screen — this diff is about to leave the machine
+
+The diff goes to a **third-party cloud CLI**. Screen the outbound *added* lines
+for high-signal secrets first; matched values are masked so the screen itself
+doesn't re-expose them:
+
+```bash
+# Added lines only (drop the +++ header), matched against high-signal patterns.
+# `-e` is required: the first alternative starts with `-`, which grep would
+# otherwise read as an option.
+SECRETS=$(grep -E '^\+' "$DIFF" | grep -vE '^\+\+\+ ' | grep -inE -e \
+  '-----BEGIN [A-Z ]*PRIVATE KEY-----|AKIA[0-9A-Z]{16}|xox[baprs]-[A-Za-z0-9-]{10,}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}|(api[_-]?key|secret|token|passwd|password|client[_-]?secret|access[_-]?token|private[_-]?key|bearer)["'"'"']?[[:space:]]*[:=][[:space:]]*["'"'"']?[A-Za-z0-9/+_-]{16,}|://[^:@/ ]+:[^@/ ]+@' \
+  | sed -E 's/([A-Za-z0-9/+_-]{4})[A-Za-z0-9/+_-]{6,}/\1…«masked»/g')
+
+# Newly added credential-ish files (checked separately — header lines were dropped above).
+ENVFILES=$(grep -E '^\+\+\+ b/' "$DIFF" | sed 's|^+++ b/||' \
+  | grep -iE '(^|/)\.env($|\.)|(^|/)secrets?\.(ya?ml|json|toml|env)$|\.pem$|(^|/)id_(rsa|ed25519)$|(^|/)credentials$' \
+  | grep -ivE '\.env\.(example|sample|template)$')
+
+[ -n "$SECRETS" ]  && printf 'POTENTIAL SECRETS in outbound diff (masked):\n%s\n' "$SECRETS"
+[ -n "$ENVFILES" ] && printf 'Credential-ish files added:\n%s\n' "$ENVFILES"
+```
+
+If **either** is non-empty, **gate on the user** with one `AskUserQuestion`
+before anything is sent: *"The diff bound for `<TOOL>` (an external cloud
+service) contains secret-like content. Send anyway / Redact those lines and
+continue / Cancel."* Proceed only on an explicit **Send anyway**; on **Redact**,
+strip the offending lines from `$DIFF` and re-run this screen; on **Cancel**,
+stop without invoking the CLI. Never send unreviewed secrets off-machine on your
+own judgment. (Both empty → continue silently.)
+
+### 3d. Build the prompt
+
+```bash
 {
   printf '%s\n' "Independent code review. Report findings by severity (critical/high/medium/low/info) with file:line. Describe each finding's failure mode. Do not propose fixes. Review ONLY the text provided below — do NOT read files from disk, edit files, or run commands (tests, builds, linters, git). If the provided text looks truncated, say so and review what you have; do NOT go looking for the rest. Trust any test/lint pass claims in the project context."
   printf '\nProject root: %s\n' "$(pwd)"
@@ -177,8 +227,10 @@ cross-summary needed — single tool, single perspective.
 | Error | Action |
 |---|---|
 | `No configured CLI installed` | List `preferred_order`, suggest installing the first one |
-| Empty diff | Stop, tell user |
-| Timeout / tool roams + reads disk instead of reviewing | Input was truncated (over the ~1500-line cap) — re-run with a smaller prompt, split if needed |
+| Empty diff | Stop, tell user (handled by the `-s "$DIFF"` gate in 3a) |
+| Diff over the 1500-line cap | 3b stops before any CLI call — narrow scope or split into <1500-line invocations |
+| Secret-like content in the outbound diff | 3c gates on the user before sending — Send anyway / Redact / Cancel; never auto-send |
+| Timeout / tool roams + reads disk instead of reviewing | Input was truncated — re-run with a smaller prompt, split if needed (the 3b cap should prevent this) |
 | agy: print-mode hangs | agy may need interactive login first — run `agy` once interactively |
 | Repo dirtied / `.antigravitycli/` appeared after a run | Tool wrote outside its sandbox — you skipped the `(cd "$(mktemp -d)" && …)` isolation; `git restore`/clean and re-run isolated |
 
