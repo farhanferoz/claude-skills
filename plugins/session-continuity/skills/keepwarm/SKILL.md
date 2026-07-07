@@ -119,8 +119,9 @@ output line.
    `test -e .session-done && echo done` in the project dir. If it prints `done`,
    a `/checkpoint --final` has declared the work finished (a signal that survives
    `/clear`), so stop: reply `keep-warm stopped — session marked done.` and do
-   **not** reschedule. (A genuinely new session clears this marker at startup, so
-   it can never be stale from a previous day.) This is the one filesystem check
+   **not** reschedule. (The SessionStart hook clears this marker on both a fresh
+   startup and a `claude -r` resume, so it can never be stale from a previous
+   day.) This is the one filesystem check
    the wake turn is allowed; skip it gracefully if Bash is sandboxed away from the
    project dir.
 2. **User said stop?** If the conversation shows "stop" / "I'm back" / an
@@ -147,6 +148,11 @@ output line.
   **opens a fresh 5-hour rate-limit window** — the user may return to a window
   that is already hours old. Mention this when arming for a long absence.
 - The schedule does not survive a session restart — if asked, say so.
+- `/clear` behavior is harness-dependent: a pending wake may or may not fire
+  after a `/clear`. If it does fire, the `--ping` args are self-contained so
+  the loop continues correctly; if pings stop arriving after a `/clear`, the
+  loop is dead and must be re-armed — never claim the cache is being kept warm
+  without a wake actually landing.
 - A warm cache does **not** help `claude -r` / `--resume` (structural cache
   miss regardless of warmth). If the user plans to exit, point at `/checkpoint`
   or `/session-handoff` instead of arming this.

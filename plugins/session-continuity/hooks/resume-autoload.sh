@@ -56,15 +56,23 @@ resume="$base/RESUME${slot}.md"
 # ---- 0. clear a stale completion marker on a genuinely new session ----
 # `.session-done` (written by `/checkpoint --final`) tells /keepwarm the work is
 # finished. It must survive `/clear` (source=clear) so a final checkpoint still
-# stands the helpers down — but a brand new session (source=startup) is NOT done,
-# so a marker left over from a previous session would falsely quit its helpers.
-# Clear it only on startup.
-if [ "$src" = "startup" ]; then
+# stands the helpers down — but starting fresh (source=startup) or resuming a
+# session (source=resume, `claude -r`) means the user is working again, so a
+# marker left over from a previous day would falsely quit its helpers.
+if [ "$src" = "startup" ] || [ "$src" = "resume" ]; then
     rm -f "$base/.session-done" 2>/dev/null
 fi
 
 # ---- 1. inject RESUME into context ----
-[ -f "$resume" ] && cat "$resume"
+# Bounded: a runaway RESUME (the exact failure the budget NOTE below nags about)
+# must degrade instead of flooding every session start. 2× budget is generous —
+# the budget NOTE fires long before the cut is ever reached.
+if [ -f "$resume" ]; then
+    head -n $((budget * 2)) "$resume"
+    if [ "$(wc -l < "$resume" 2>/dev/null | tr -d '[:space:]')" -gt "$((budget * 2))" ] 2>/dev/null; then
+        printf '\nNOTE: RESUME truncated at %d lines for injection — run /checkpoint to trim it.\n' "$((budget * 2))"
+    fi
+fi
 
 # ---- 1b. post-compaction nudge ----
 # After auto-compaction (or a manual /compact) the conversation is summarized and
@@ -87,10 +95,11 @@ if [ -f "$resume" ]; then
 fi
 
 # Memory hygiene for THIS project's memory dir (never another project's).
-# Claude Code encodes the project dir by replacing BOTH "/" and "_" with "-".
-# Two single-char substitutions, NOT a single bracket character class — macOS
-# bash 3.2 mishandles such a class, so the tidy NOTE would silently never fire there.
-slug="${base//\//-}"; slug="${slug//_/-}"
+# Claude Code's project slug: EVERY non-alphanumeric character becomes "-"
+# (verified against real projects/ dirs: "/", "_" and "." all convert). tr, not
+# a ${var//[^…]/} bracket class — macOS bash 3.2 mishandles such a class, so
+# the tidy NOTE would silently never fire there.
+slug=$(printf '%s' "$base" | LC_ALL=C tr -c 'A-Za-z0-9' '-')
 memdir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects/$slug/memory"
 index="$memdir/MEMORY.md"
 if [ -f "$index" ]; then

@@ -77,9 +77,12 @@ same-directory case.
 
 ## 1. Pick the mode
 
-- **bootstrap** — neither `$resume` nor `$changelog` exists → create both from
-  the lean templates in §2, then exclude them locally (§2.3). **Never overwrite.**
-- **checkpoint** (default, mid-work) — files exist → merge current state into
+- **bootstrap** — `$resume` does not exist → create it from the lean template in
+  §2 (and `$changelog` too, unless the repo already has a real `CHANGELOG.md` —
+  see §2.2), then exclude them locally (§2.3). **Never overwrite.** Keyed on
+  `$resume` alone: a repo with a project CHANGELOG but no RESUME still
+  bootstraps.
+- **checkpoint** (default, mid-work) — `$resume` exists → merge current state into
   `$resume` the **lean** way (§3): reuse the in-context copy, update in place,
   refresh today's session block, and roll to `$changelog` only if over budget.
   Touches only the continuity files, not memory. Also clears any `.session-done`
@@ -190,7 +193,11 @@ The goal is a **merge**, not a rewrite, done in as few tool calls as possible.
    injected it at the top of this session, and every `Edit` you've made since is
    reflected there — so the in-context copy is current. **Only `Read` it again if
    it could have changed outside this session** (a parallel session, or you simply
-   don't have it). Skipping a needless re-read saves a full-context round-trip.
+   don't have it). One exception: hook-injected text does **not** satisfy the
+   harness's Read-before-Edit check, so if you have not yet touched `$resume` with
+   the `Read`/`Edit`/`Write` tools this session, do **one** `Read` before the
+   first `Edit` — otherwise that Edit fails and costs more than the read saved.
+   Skipping a needless re-read saves a full-context round-trip.
 2. **Keep carried state verbatim.** Every thread, decision, and open question this
    session did *not* change stays exactly as written.
 3. **Update the structured lines in place** — `### Now / ### Next / ### Threads /
@@ -264,10 +271,10 @@ operates on a **different file set** from `$resume`/`$changelog`: this project's
 auto-memory directory.
 
 ```bash
-# Claude Code encodes the project dir by replacing BOTH "/" and "_" with "-".
-# Two single-char substitutions, NOT a single bracket character class — macOS
-# bash 3.2 mishandles such a class, so tidy would silently no-op there.
-slug="${PWD//\//-}"; slug="${slug//_/-}"
+# Claude Code encodes the project dir by replacing EVERY non-alphanumeric
+# character with "-" ("/", "_", "." all convert). tr, not a bracket character
+# class — macOS bash 3.2 mishandles ${var//[^…]/}, so tidy would silently no-op.
+slug=$(printf '%s' "$PWD" | LC_ALL=C tr -c 'A-Za-z0-9' '-')
 memdir="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects/$slug/memory"
 ```
 
