@@ -1,6 +1,6 @@
 ---
 name: deep-research-tiered
-description: Cost-tiered deep research — decompose the question in-session, get user approval on angles and cost, then run a Sonnet-tiered fan-out workflow (search → fetch → three-way verify with Opus appeals → synthesize) and present a cited report. Use when the user asks for deep research, multi-source research, a fact-checked report, or types /deep-research-tiered. Roughly 10× cheaper than the bundled /deep-research (measured: ~$8-11 vs ≈$110) because search/fetch/verify run on Sonnet instead of the session model.
+description: Cost-tiered deep research — decompose the question in-session, get user approval on angles and cost, then run a Sonnet-tiered fan-out workflow (search → fetch → three-way verify with Opus appeals → synthesize) and present a cited report. Use when the user asks for deep research, multi-source research, a fact-checked report, or types /deep-research-tiered. Roughly 10× cheaper than the bundled /deep-research on our measured runs, because search/fetch/verify run on Sonnet instead of the session model.
 ---
 
 # Tiered deep research
@@ -21,7 +21,7 @@ Present to the user before launching anything:
 
 1. The angles (label + query, one line each).
 2. The caps: `maxFetch` (default 15 sources), `centralVotes` (default 3), `maxVerifyClaims` (default 25).
-3. A cost estimate. Agent count ≈ angles + maxFetch + (central claims × centralVotes) + supporting claims + appeals (0-5) + 1 synthesis. At defaults expect ~50-70 agents and **~$8-11 measured** (a full run at maxFetch 20 / 30 claims / 3 votes measured $7.98 before the Sonnet search/extract upgrade and appeal lane; the bundled all-Opus /deep-research measured ≈$110 on a smaller run). A smoke-scale run (maxFetch 4, centralVotes 1) is ≈$1.5-2.
+3. A cost estimate. Agent count ≈ angles + maxFetch + (central claims × centralVotes) + supporting claims + appeals (0-5) + 1 synthesis. At defaults expect ~50-70 agents — on our test runs roughly an order of magnitude cheaper than an all-session-model deep research run (exact dollar cost depends on current per-token rates and your account; a smoke-scale run at maxFetch 4 / centralVotes 1 is a small fraction of the full-scale cost).
 4. Synthesis effort: default xhigh; offer `max` for the deepest final report (costs little extra — one agent).
 
 Let the user trim angles or caps. Do not launch until they confirm.

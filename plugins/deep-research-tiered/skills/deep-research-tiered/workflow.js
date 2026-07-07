@@ -260,7 +260,9 @@ const searchResults = (await parallel(
 const perAngle = searchResults.map(sr => ({
   angle: sr.angle,
   queue: sr.results.filter(r => {
-    const key = normURL(r.url)
+    // Key on the fetchable form so an arXiv /pdf/ link from one angle and the
+    // /abs/ page from another dedup to one source instead of burning two slots.
+    const key = normURL(fetchableURL(r.url))
     if (seen.has(key)) {
       dupes.push({ ...r, angle: sr.angle, dupOf: seen.get(key) })
       return false
