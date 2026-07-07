@@ -45,13 +45,13 @@ digraph tier_selection {
 
 ## Tier Playbooks
 
-**Pre-step for every tier:** `simplify` runs first. Never review pre-simplify code — refactor will invalidate the review.
+**Pre-step for every tier:** `simplify` runs first. Never review pre-simplify code — refactor will invalidate the review. If the `simplify` skill isn't available in the current environment, do a brief manual simplification pass over the diff instead (remove obvious duplication, dead code, and naming/structure issues you can fix in a couple minutes), or explicitly note in the summary that this step was skipped — don't silently proceed as if it ran.
 
 ### Tier 1 — Light (1–4 commits, no sensitive surface)
 
 1. Project's test gate passes
 2. `simplify`
-3. `commit` + push
+3. Commit and push
 
 No dedicated review step.
 
@@ -86,7 +86,7 @@ No dedicated review step.
 
 Everything in Tier 3 plus:
 
-1. Property-based tests added BEFORE the review — explores input space, catches what review reads-by reads can't
+1. Property-based tests added BEFORE the review — explores input space, catches what read-by-read review can't
 2. **Fresh-session pattern**: close current Claude Code session, open a new one, then run the Tier 3 pipeline. Purges the conversation context that primed the agent on the implementation — closest local approximation to fully cold context.
 3. `/second-opinion` invoked once (provider order per `~/.claude/second-opinion.config.json`); one run satisfies Tier 4. Only invoke a second provider if the user explicitly asks for parallel cold-context confirmation.
 4. Don't combine with other risky changes in the same release; keep the blast radius narrow
