@@ -90,7 +90,7 @@ codex exec \
   -c model_reasoning_effort='"xhigh"' \
   --sandbox read-only \
   --ephemeral \
-  --output-schema {baseDir}/references/codex-review-schema.json \
+  --output-schema "${CLAUDE_PLUGIN_ROOT}/skills/second-opinion/references/codex-review-schema.json" \
   -o "$output_file" \
   - < "$prompt_file" \
   > /dev/null 2>"$stderr_log"
