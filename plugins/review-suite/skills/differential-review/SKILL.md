@@ -112,15 +112,22 @@ Before delivering:
 
 ---
 
-## Integration
+## Handoff
 
-**audit-context-building skill:**
-- Pre-Analysis: Build baseline context
-- Phase 4: Deep context on HIGH RISK changes
+This skill does not depend on any other skill or CLI to finish its job. Once findings are documented (in the report file, or returned directly in Quick mode — see below):
 
-**issue-writer skill:**
-- Transform findings into formal audit reports
-- Command: `issue-writer --input DIFFERENTIAL_REVIEW_REPORT.md --format audit-report`
+- Hand the findings to the user directly, or
+- Pass true-positive candidates to the `fp-check` skill for verification before they're reported as confirmed bugs.
+
+---
+
+## Quick Mode (tiered-review worker)
+
+When this skill is dispatched as one of several parallel workers by `tiered-review` (sibling skill: `../tiered-review/SKILL.md`), it runs inside that skill's 15-25 minute Tier 3 budget, not standalone. In that context:
+
+- Compress to the SMALL-strategy essentials only: a regression hunt on the diff (Phase 1's git-blame/re-added-code checks) plus a blast-radius calculation on changed functions. Skip Phase 2 (test coverage), Phase 4 (deep context), and Phase 5 (adversarial modeling) unless a HIGH RISK + CRITICAL blast-radius finding specifically warrants it.
+- Skip the report-file requirement — return findings directly in the response to the dispatching orchestrator instead of writing `DIFFERENTIAL_REVIEW_REPORT.md`. `tiered-review` aggregates findings across all parallel workers itself.
+- The time estimates below (30 min / 3-4 hours / 6-8 hours) describe standalone, full-depth use of this skill outside `tiered-review` — they do not apply in Quick Mode.
 
 ---
 
@@ -145,7 +152,7 @@ Strategy: FOCUSED (see methodology.md)
 2. Surface scan on MEDIUM
 3. Skip LOW risk files
 4. Complete report with all sections
-Time: ~3-4 hours
+Time: ~3-4 hours (standalone use; compressed to ~15-25 min in tiered-review Quick Mode)
 ```
 
 ### Deep Audit (Large, Critical Change)
@@ -157,7 +164,7 @@ Strategy: SURGICAL + audit-context-building
 3. Blast radius analysis
 4. Adversarial modeling
 5. Comprehensive report
-Time: ~6-8 hours
+Time: ~6-8 hours (standalone use only — not run in tiered-review Quick Mode)
 ```
 
 ---

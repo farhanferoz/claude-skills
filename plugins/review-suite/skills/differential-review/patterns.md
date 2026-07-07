@@ -2,21 +2,7 @@
 
 Quick reference for detecting common security issues in code changes.
 
-**Specialized Pattern Resources:**
-For specific contexts, reference these additional pattern databases:
-
-**Domain-Specific:**
-- `domain-specific-audits/defi-bridges/resources/` - 127 bridge-specific findings
-- `domain-specific-audits/tick-math/resources/` - 81 tick math findings
-- `domain-specific-audits/merkle-trees/resources/` - 67 merkle tree findings
-- [Check `domain-specific-audits/skills/` for additional domains]
-
-**Solidity-Specific:**
-- `not-so-smart-contracts` - Automated Solidity vulnerability detectors
-- `token-integration-analyzer` - Token integration safety patterns
-- `building-secure-contracts/development-guidelines` - Solidity best practices
-
-These complement the generic patterns below.
+**Specialized contexts:** For a codebase in a specific domain (smart contracts, crypto protocols, embedded systems, etc.), consult language- and framework-specific vulnerability pattern references for that domain in addition to the generic patterns below — e.g. official security guidelines for the language/framework in use, or a language-specific static analyzer's rule set.
 
 ---
 
@@ -35,94 +21,91 @@ git log -S "pattern" --all --grep="security\|fix\|CVE"
 - Code removed <6 months ago
 - No explanation in current PR for re-addition
 
-**Example:**
-```solidity
-// Removed in commit abc123 "Fix reentrancy CVE-2024-1234"
-// Re-added in current PR
-function emergencyWithdraw() {
-    // REGRESSION: Reentrancy vulnerability re-introduced
-}
+**Example (Python):**
+```python
+# Removed in commit abc123 "Fix SSRF via unvalidated redirect target CVE-2024-1234"
+# Re-added in current PR by a well-meaning refactor that dropped the check
+def fetch_webhook(url: str):
+    # REGRESSION: allow-list check on `url`'s host was here before the refactor;
+    # this now fetches attacker-supplied URLs unchecked.
+    return requests.get(url)
 ```
 
 ---
 
 ## Double Decrease/Increase Bugs
 
-**Pattern:** Same accounting operation twice for same event
+**Pattern:** Same accounting or state-mutating operation applied twice for the same logical event
 
-**Detection:** Look for two state updates in related functions for same logical action
+**Detection:** Look for two state updates in related functions for the same logical action
 
-**Example:**
-```solidity
-// Request exit
-function requestExit() {
-    balance[user] -= amount;  // First decrease
-}
+**Example (Python):**
+```python
+# Reserve inventory
+def reserve_order(order):
+    inventory[order.sku] -= order.qty  # First decrement
 
-// Process exit
-function processExit() {
-    balance[user] -= amount;  // Second decrease - BUG!
-}
+# Confirm/ship order
+def ship_order(order):
+    inventory[order.sku] -= order.qty  # Second decrement - BUG! Already reserved.
 ```
 
-**Impact:** User balance decremented twice, protocol loses funds
+**Impact:** Inventory count decremented twice per order; stock appears to run out early or goes negative
 
 ---
 
 ## Missing Validation
 
-**Pattern:** Removed `require`/`assert`/`check` without replacement
+**Pattern:** Removed an input-validation check (assertion, guard clause, schema check) without a replacement
 
 **Detection:**
 ```bash
-git diff <range> | grep "^-.*require"
-git diff <range> | grep "^-.*assert"
-git diff <range> | grep "^-.*revert"
+git diff <range> | grep -E "^-.*(assert|validate|if not|raise|throw new)"
 ```
 
 **Questions to ask:**
-- Was validation moved elsewhere?
-- Is it redundant (defensive programming)?
-- Does removal expose vulnerability?
+- Was validation moved elsewhere (e.g., into a shared middleware or decorator)?
+- Is it redundant (defensive programming), or the only check on this path?
+- Does removal expose a vulnerability (injection, negative amounts, oversized input)?
 
-**Example:**
+**Example (TypeScript):**
 ```diff
-function withdraw(uint256 amount) {
--   require(amount > 0, "Zero amount");
--   require(amount <= balance[msg.sender], "Insufficient");
-    balance[msg.sender] -= amount;
+function withdraw(userId: string, amount: number) {
+-   if (amount <= 0) throw new Error("Amount must be positive");
+-   if (amount > getBalance(userId)) throw new Error("Insufficient balance");
+    setBalance(userId, getBalance(userId) - amount);
 }
 ```
 
-**Risk:** Zero-amount withdrawals, underflow attacks now possible
+**Risk:** Zero/negative-amount withdrawals and balance underflow are now possible
 
 ---
 
-## Underflow/Overflow
+## Overflow / Truncation
 
-**Pattern:** Arithmetic without SafeMath or checks
+**Pattern:** Arithmetic on user-controlled values without overflow or range checks
 
 **Detection:**
-- Look for `+`, `-`, `*`, `/` in Solidity <0.8.0
-- Check if SafeMath removed
-- Look for unchecked blocks in Solidity >=0.8.0
+- Look for `+`, `-`, `*` on values that came from request input or a loop counter
+- Check whether a language's checked-arithmetic helper (Go's `math/bits`, Python's arbitrary-precision ints, Rust's `checked_add`) was bypassed with a raw operator or an `unsafe`/`unchecked` block
+- Look for narrowing casts (`int64` → `int32`, `long` → `int`) applied to user-controlled values
 
-**Example:**
-```solidity
-// Solidity 0.7 without SafeMath
-balance[user] -= amount;  // Can underflow if amount > balance
-
-// Solidity 0.8+ with unchecked
-unchecked {
-    balance[user] -= amount;  // Deliberately bypasses overflow check
+**Example (Go):**
+```go
+// VULNERABLE: no bounds check, and the cast silently truncates
+func setQuota(userQuota int64) {
+    quota := int32(userQuota) // truncates values > 2^31-1, can wrap negative
+    db.SetQuota(quota)
 }
 ```
 
-**Risk:** Integer wrap-around leads to incorrect balances
+**Risk:** Wrap-around or truncation produces an incorrect (often negative or tiny) quota/balance value
 
 ---
 
-## Reentrancy
+## Reentrancy (Solidity — domain-specific illustration)
+
+Reentrancy is specific to smart-contract execution models (a callee can call back into the caller mid-transaction before state is finalized); it's included here as a worked example of a domain-specific pattern class, alongside the general-purpose patterns above and below. For other domains, consult language/framework-specific vulnerability references for the equivalent hazard class (e.g., callback re-entry in event-driven systems, signal handler reentrancy in C).
 
 **Pattern:** External call before state update
 
@@ -157,142 +140,152 @@ function withdraw() {
 
 **Detection:**
 ```bash
-git diff <range> | grep "^-.*onlyOwner"
-git diff <range> | grep "^-.*onlyAdmin"
-git diff <range> | grep "^-.*require.*msg.sender"
+git diff <range> | grep -E "^-.*(@login_required|@require_role|is_admin|checkPermission|requireAuth)"
 ```
 
 **Questions:**
-- Who can now call this function?
+- Who can now call this endpoint/function?
 - What's the new trust model?
-- Was check moved to caller?
+- Was the check moved to a caller, or dropped entirely?
 
-**Example:**
+**Example (Python/Flask):**
 ```diff
-- function setConfig(uint value) external onlyOwner {
-+ function setConfig(uint value) external {
-      config = value;
-  }
+- @login_required
+- @require_role("admin")
+  def update_config(request):
+      config.update(request.json)
+      return "OK"
 ```
 
-**Risk:** Any user can now modify critical configuration
+**Risk:** Any authenticated (or unauthenticated) user can now modify critical configuration
 
 ---
 
-## Race Conditions / Front-Running
+## Race Conditions from Caching
 
-**Pattern:** State-dependent logic without protection
+**Pattern:** A cache is introduced (or its invalidation is changed) without accounting for concurrent readers/writers
 
-**Detection:** Look for two-step processes without commit-reveal or timelocks
+**Detection:** Look for a cache-read/cache-write pair added around a mutable resource, and check whether invalidation happens before or after the underlying write completes
 
-**Example:**
-```solidity
-// Step 1: Approve
-function approve(address spender, uint amount) {
-    allowance[msg.sender][spender] = amount;
+**Example (Python):**
+```python
+# VULNERABLE: cache is invalidated before the write commits,
+# so a concurrent reader can repopulate the cache with stale data
+# in the window between invalidation and commit.
+def update_profile(user_id, data):
+    cache.delete(f"profile:{user_id}")   # invalidate FIRST
+    db.update_profile(user_id, data)     # write happens AFTER, not yet visible
+
+# SAFE: invalidate only after the write is durably committed
+def update_profile(user_id, data):
+    db.update_profile(user_id, data)     # write commits FIRST
+    cache.delete(f"profile:{user_id}")   # invalidate AFTER
+```
+
+**Risk:** A reader between the two steps can re-cache the pre-update value, serving stale data indefinitely until the next write
+
+---
+
+## Time-Based Logic Manipulation
+
+**Pattern:** Security-relevant logic that trusts a timestamp the caller can influence
+
+**Detection:**
+```bash
+git diff <range> | grep -E "(request\.(timestamp|time)|client_time|Date\.now\(\)|time\.time\(\))"
+```
+
+**Example (TypeScript):**
+```typescript
+// VULNERABLE: trusts a client-supplied timestamp for token expiry checks
+function isTokenValid(token: Token, clientTimestamp: number) {
+  return clientTimestamp < token.expiresAt; // attacker controls clientTimestamp
 }
 
-// Step 2: User can front-run between approval changes
-// Attacker sees tx changing approval from 100 to 50
-// Front-runs to spend 100, then spends 50 after = 150 total
+// SAFER: use the server's own clock, not caller-supplied input
+function isTokenValid(token: Token) {
+  return Date.now() < token.expiresAt;
+}
 ```
 
-**Risk:** MEV/front-running exploits state transitions
+**Risk:** An attacker who controls the timestamp input can bypass expiry, rate limits, or replay windows
 
 ---
 
-## Timestamp Manipulation
+## Unchecked Return Values / Errors
 
-**Pattern:** Security logic depending on `block.timestamp`
-
-**Detection:**
-```bash
-grep -r "block.timestamp" --include="*.sol"
-grep -r "now\b" --include="*.sol"  # Solidity <0.7
-```
-
-**Example:**
-```solidity
-// VULNERABLE
-require(block.timestamp > deadline, "Too early");
-// Miner can manipulate timestamp by ~15 seconds
-
-// SAFER
-require(block.number > deadlineBlock, "Too early");
-// Block numbers are harder to manipulate
-```
-
-**Risk:** Miners can manipulate timestamps within tolerance
-
----
-
-## Unchecked Return Values
-
-**Pattern:** External call without checking success
+**Pattern:** A call that can fail is invoked without checking its result
 
 **Detection:**
 ```bash
-git diff <range> | grep "\.call\|\.send\|\.transfer"
+git diff <range> | grep -E "^\+.*(\.write\(|\.send\(|os\.system\(|exec\.Command\()"
 ```
 
-**Example:**
-```solidity
-// VULNERABLE
-token.transfer(user, amount);  // Ignores return value
+**Example (Go):**
+```go
+// VULNERABLE: error from the write is discarded
+func saveAuditLog(entry string) {
+    f.WriteString(entry) // return value (n, err) ignored
+}
 
-// SAFE
-require(token.transfer(user, amount), "Transfer failed");
-// Or use SafeERC20 wrapper
+// SAFE: check and handle the error
+func saveAuditLog(entry string) error {
+    if _, err := f.WriteString(entry); err != nil {
+        return fmt.Errorf("audit log write failed: %w", err)
+    }
+    return nil
+}
 ```
 
-**Risk:** Silent failures lead to inconsistent state
+**Risk:** Silent failures lead to inconsistent state (e.g., an audit log entry silently dropped)
 
 ---
 
 ## Denial of Service
 
-**Pattern:** Unbounded loops, external call reverts blocking execution
+**Pattern:** Unbounded loops or recursion over user-controlled input, or a critical path that blocks on an unbounded external call
 
 **Detection:**
-- Arrays that grow without limit
-- Loops over user-controlled array
-- Critical function depends on external call success
+- Collections that grow without a size limit
+- Loops over a user-controlled array/list with no cap
+- A request handler that depends on an external call with no timeout
 
-**Example:**
-```solidity
-// DOS: Attacker adds many users, making loop too expensive
-function distributeRewards() {
-    for (uint i = 0; i < users.length; i++) {
-        users[i].transfer(reward);  // Runs out of gas
-    }
-}
+**Example (Python):**
+```python
+# DOS: no cap on the number of recipients, no per-call timeout;
+# a single slow/malicious recipient can block the whole batch.
+def notify_all(user_ids):
+    for uid in user_ids:              # attacker controls len(user_ids)
+        send_webhook(get_url(uid))    # no timeout — one slow endpoint stalls all
 ```
 
-**Risk:** Function becomes unusable due to gas limits
+**Risk:** Request handler becomes unusable or ties up worker threads/processes under attacker-controlled load
 
 ---
 
 ## Quick Detection Commands
 
-**Find removed security checks:**
+**Find removed validation/auth checks:**
 ```bash
-git diff <range> | grep "^-" | grep -E "require|assert|revert"
+git diff <range> | grep "^-" | grep -E "assert|validate|require|@login_required|@require_role"
 ```
 
-**Find new external calls:**
+**Find new external/network calls:**
 ```bash
-git diff <range> | grep "^+" | grep -E "\.call|\.delegatecall|\.staticcall"
+git diff <range> | grep "^+" | grep -E "requests\.|fetch\(|http\.(Get|Post)|axios\."
 ```
 
-**Find changed access modifiers:**
+**Find changed access-control decorators/middleware:**
 ```bash
-git diff <range> | grep -E "onlyOwner|onlyAdmin|internal|private|public|external"
+git diff <range> | grep -E "@login_required|@require_role|isAdmin|checkPermission|requireAuth"
 ```
 
-**Find arithmetic changes:**
+**Find arithmetic/casting changes:**
 ```bash
-git diff <range> | grep -E "\+|\-|\*|/"
+git diff <range> | grep -E "\+|\-|\*|/|int32\(|int64\("
 ```
+
+Adapt these greps to the actual language/framework in the codebase under review — the patterns above are illustrative, not exhaustive.
 
 ---
 
