@@ -55,19 +55,19 @@ For each bug (Bug #N), create tasks with the dependency structure below. After c
 ## Execution Rules
 
 - Mark each task as in-progress when starting, completed only with concrete evidence
-- **Parallel sub-phases**: Launch independent sub-phases concurrently using the plugin's agents. Collect all results before proceeding to the next dependency gate.
+- **Parallel sub-phases**: Launch independent sub-phases concurrently as inline `Task` prompts (`general-purpose` subagent type, per the Agents section below). Collect all results before proceeding to the next dependency gate.
 - **Dependency gates**: Never start a phase until all tasks it depends on are completed.
-- Apply all 13 checklist items from [false-positive-patterns.md]({baseDir}/references/false-positive-patterns.md) to each bug
+- Apply all 13 checklist items from [false-positive-patterns.md](references/false-positive-patterns.md) to each bug
 
 ## Agents
 
-Spawn these agents via `Task` for their respective phases. Pass the bug description and any prior phase results as context.
+This plugin ships no dedicated agents. For each phase group below, launch a `Task` with `subagent_type: general-purpose` using the prompt text given — pass the bug description and any prior phase results as additional context in the prompt.
 
-| Agent | Phases | Purpose |
-|-------|--------|---------|
-| `data-flow-analyzer` | 1.1–1.4 | Trace data flow, map trust boundaries, check API contracts and environment protections |
-| `exploitability-verifier` | 2.1–2.4 | Prove attacker control, mathematical bounds, race condition feasibility |
-| `poc-builder` | 4.1–4.5 | Create pseudocode, executable, unit test, and negative PoCs |
+| Phases | Purpose | Task prompt |
+|--------|---------|-------------|
+| 1.1–1.4 (Data Flow Analysis) | Trace data flow, map trust boundaries, check API contracts and environment protections | "Trace the complete data flow for the given bug claim from its source to the alleged vulnerable sink. Map every trust boundary crossed (internal/trusted vs external/untrusted), identify all validation and sanitization in between, and check whether the relevant API has a documented bounds/safety contract that already prevents the issue. Note any compiler, runtime, OS, or framework protection that applies. Return the full source-to-sink path with file:line references and a citation for every validation or protection layer found." |
+| 2.1–2.4 (Exploitability Verification) | Prove attacker control, mathematical bounds, race condition feasibility | "Verify exploitability of the given bug claim: (1) prove or disprove that an attacker actually controls the data reaching the vulnerable operation — do not assume network/external data reaches the sink without tracing the path; (2) if it involves bounds or arithmetic, build an explicit algebraic proof of the overflow/underflow condition; (3) if it involves a race, prove concurrent access to the code path is actually possible rather than assuming it; (4) enumerate the full attack surface — input control, validation bypass paths, timing dependencies, state manipulation. Return the attacker-control evidence, the algebraic proof (if applicable), and the race feasibility argument (if applicable), each with concrete reasoning, not assertions." |
+| 4.1–4.5 (PoC Creation) | Create pseudocode, executable, unit test, and negative PoCs | "Build proof-of-concept evidence for the given bug claim: (1) always produce a pseudocode PoC with a data-flow diagram of the attack path; (2) produce an executable PoC in the target language if feasible; (3) produce a unit test that exercises the vulnerable path with crafted inputs if feasible; (4) produce a negative PoC showing the preconditions required to trigger the bug and explaining why they don't hold under normal operation. Return all PoC artifacts you can produce, and explicitly say which ones weren't feasible and why." |
 
 Phases 3 (Impact Assessment), 5 (Devil's Advocate), and the Gate Review are handled directly — they require synthesizing results across phases and should not be delegated.
 
@@ -77,7 +77,7 @@ The task list above names every phase. Below are the key pitfalls and decision c
 
 ### Phase 1: Data Flow Analysis
 
-**1.1**: Map trust boundaries (internal/trusted vs external/untrusted) and trace data from source to alleged vulnerability. Apply class-specific verification from [bug-class-verification.md]({baseDir}/references/bug-class-verification.md). **Key pitfall**: Analyzing code in isolation without tracing the full validation chain. Conditional logic upstream may make the vulnerable code mathematically unreachable (see [false-positive-patterns.md]({baseDir}/references/false-positive-patterns.md) items 1 and 1a).
+**1.1**: Map trust boundaries (internal/trusted vs external/untrusted) and trace data from source to alleged vulnerability. Apply class-specific verification from [bug-class-verification.md](references/bug-class-verification.md). **Key pitfall**: Analyzing code in isolation without tracing the full validation chain. Conditional logic upstream may make the vulnerable code mathematically unreachable (see [false-positive-patterns.md](references/false-positive-patterns.md) items 1 and 1a).
 
 **1.2**: Check API contracts before claiming overflows — many APIs have built-in bounds protection that prevents the alleged issue regardless of inputs.
 
@@ -89,7 +89,7 @@ The task list above names every phase. Below are the key pitfalls and decision c
 
 **2.1**: Prove attacker controls the data reaching the vulnerability. **Key pitfall**: Assuming network/external data reaches the operation without tracing the actual path — internal storage set by trusted components is not attacker-controlled.
 
-**2.2**: Create explicit algebraic proofs for bounds-related issues. Use the template in [evidence-templates.md]({baseDir}/references/evidence-templates.md). Verify: IF validation_check_passes THEN bounds_guarantee_holds.
+**2.2**: Create explicit algebraic proofs for bounds-related issues. Use the template in [evidence-templates.md](references/evidence-templates.md). Verify: IF validation_check_passes THEN bounds_guarantee_holds.
 
 **2.3**: For race conditions, prove concurrent access is actually possible. **Key pitfall**: Assuming race conditions in single-threaded initialization or synchronized contexts.
 
@@ -109,7 +109,7 @@ The task list above names every phase. Below are the key pitfalls and decision c
 2. **Executable PoC** in the target language demonstrating the vulnerability (if feasible)
 3. **Unit test PoC** exercising the vulnerable code path with crafted inputs (if feasible)
 
-See [evidence-templates.md]({baseDir}/references/evidence-templates.md) for PoC templates.
+See [evidence-templates.md](references/evidence-templates.md) for PoC templates.
 
 **Negative PoC (Phase 4.4)**: Demonstrate the gap between normal operation and the exploit path — what preconditions must hold for the vulnerability to trigger, and why they don't hold under normal conditions.
 
@@ -136,8 +136,8 @@ Before final verdict, systematically challenge the vulnerability claim. Assume y
 12. Am I dismissing a real vulnerability because the exploit seems complex or unlikely?
 13. Am I inventing mitigations or validation logic that I haven't verified in the actual source code? Re-read the code after reaching a conclusion.
 
-See [evidence-templates.md]({baseDir}/references/evidence-templates.md) for the devil's advocate documentation template.
+See [evidence-templates.md](references/evidence-templates.md) for the devil's advocate documentation template.
 
 ## Gate Review
 
-Apply the six gates from [gate-reviews.md]({baseDir}/references/gate-reviews.md) to reach a verdict.
+Apply the six gates from [gate-reviews.md](references/gate-reviews.md) to reach a verdict.
