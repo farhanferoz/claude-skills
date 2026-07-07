@@ -1,6 +1,6 @@
 {
   "name": "deep-research-tiered",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Cost-tiered deep research: decompose the question in-session, approve scope, then run a Sonnet-tiered fan-out (search -> fetch -> three-way verify with Opus appeals -> synthesize) and present a cited report. Bundles the six dr-* agents it drives.",
   "author": {
     "name": "Farhan Feroz"
