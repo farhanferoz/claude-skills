@@ -9,7 +9,14 @@ Review changes on this branch for bugs, security vulnerabilities, and code quali
 
 ## Phase 1: Complete Input Gathering
 
-1. Get the FULL diff: `git diff $(gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name')...HEAD`
+1. Get the FULL diff against the default branch. Auto-detect the base (no `gh` auth or GitHub remote required):
+
+   ```bash
+   BASE=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
+   [ -z "$BASE" ] && BASE=$(gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name' 2>/dev/null)
+   [ -z "$BASE" ] && BASE=main
+   git diff "$BASE"...HEAD
+   ```
 2. If output is truncated, read each changed file individually until you have seen every changed line
 3. List all files modified in this branch before proceeding
 
@@ -72,4 +79,4 @@ For each issue:
 
 If you find nothing significant, say so - don't invent issues.
 
-Do not make changes - just report findings. I'll decide what to address.
+Do not make changes - just report findings. The user decides what to address.
