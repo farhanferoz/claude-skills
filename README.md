@@ -142,7 +142,7 @@ the list one task at a time.
   Includes `workflow-compile.md` for compiling a plan into a budget-capped,
   crash-resumable Workflow.
 - **`subagent-driven-development`** — the in-session variant: fresh subagent per
-  task with two-stage review, dispatched by wave.
+  task with a spec + quality review after each, dispatched by wave.
 - **Eight guard hooks** (wired automatically on install) that make this safe:
   `write_set_guard` enforces single-writer discipline (no two subagents write
   the same path), `orchestrator_check` re-injects the decomposition doctrine
@@ -158,6 +158,19 @@ dispatch. See the plugin's `NOTICE` for attribution and `MAINTAINERS.md` for the
 fork point and how to rebase onto newer upstream. Pairs with **ccage** for
 unattended runs: ccage-auto keeps the session alive across checkpoints and arms
 its own `autonomous_ask_guard` (not shipped here, to avoid double-registration).
+
+**Optional Superpowers companion.** `subagent-driven-development` points at a few
+sibling Superpowers skills — `superpowers:requesting-code-review` for the final
+whole-branch review, and `test-driven-development` / `using-git-worktrees` /
+`finishing-a-development-branch` in its Integration list. This plugin does **not**
+bundle them; those steps degrade to a generic review when they are absent. To get
+them, install the `superpowers` plugin from
+[obra/superpowers-marketplace](https://github.com/obra/superpowers-marketplace)
+alongside this one. Note that `superpowers` is a monolithic pack that *also* ships
+its own writing-plans/executing-plans/subagent-driven-development — so with both
+installed you will have two of each: prefer the `orchestration:`-namespaced ones
+(the wave-dispatch forks). A hard plugin dependency is intentionally not declared,
+precisely to avoid pulling in that second, sequential copy.
 
 **Requires `python3`** on `PATH` — the guard hooks use it for JSON parsing and
 write-set tracking (they fail open if it is missing, so the skills still work,
