@@ -1,6 +1,6 @@
 {
   "name": "orchestration",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Autonomous plan-execution: write an execution-level plan (writing-plans), dispatch it in dependency waves instead of walking the list (executing-plans, subagent-driven-development), and enforce single-writer discipline + the decomposition doctrine with eight guard hooks. Lets a long-lived or unattended session work through a stack of plans. Three skills are modified forks of obra/superpowers (MIT) — see NOTICE.",
   "author": {
     "name": "Farhan Feroz"

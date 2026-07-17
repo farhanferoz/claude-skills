@@ -14,25 +14,39 @@ original. This note is for keeping the forks current against upstream.
 | the 8 `hooks/` guards, `reference/model-routing-policy.md` | original | — |
 
 - **Upstream:** https://github.com/obra/superpowers (MIT, © 2025 Jesse Vincent)
-- **Fork point:** 2026-03-21 — the unmodified copies as of that date are kept in
-  `.upstream-base/` (one file per skill).
-- **Last upstream reviewed:** commit `d884ae0`, 2026-07-02.
+- **Fork points are now per-skill** (each `.upstream-base/<skill>.SKILL.md` is the
+  exact upstream ancestor it was last rebased from — each verified byte-identical
+  to the commit named):
+  - `writing-plans` — commit `d884ae0` (2026-07-02), **rebased 2026-07-17** (was
+    `4ae1a3d`, 2026-03-25).
+  - `subagent-driven-development` — commit `d884ae0` (2026-07-02), **rebased
+    2026-07-17** (was `9ccce3b`, 2026-03-11).
+  - `executing-plans` — commit `3bdd66e` (2026-03-08), not yet rebased.
+- **Last upstream reviewed:** commit `d884ae0`, 2026-07-02 (= current HEAD / v6.1.1).
 
 ## What our fork changes
 
 Every modification replaces Superpowers' sequential "walk the task list"
 execution model with dependency-wave dispatch, plus the write-set discipline the
-`hooks/write_set_guard.sh` backstops. The supporting prompt files
-(`implementer-prompt.md`, `spec-reviewer-prompt.md`, `code-quality-reviewer-prompt.md`)
-are unchanged from upstream.
+`hooks/write_set_guard.sh` backstops. Beyond that:
 
-## Upstream drift (measured at fork point → `d884ae0`)
+- `subagent-driven-development` tracks upstream's file set as of `d884ae0`:
+  `implementer-prompt.md` + `task-reviewer-prompt.md` (upstream consolidated our
+  old separate `spec-reviewer`/`code-quality-reviewer` prompts into this single
+  two-verdict reviewer) + `scripts/{task-brief,review-package,sdd-workspace}`.
+  One local adaptation: upstream's hard relative path
+  `../requesting-code-review/code-reviewer.md` (final whole-branch review) is
+  softened to a `superpowers:requesting-code-review` skill reference, since this
+  plugin does not bundle that sibling skill — install the Superpowers pack
+  alongside for it.
 
-| Skill | Upstream change since fork | Our divergence from upstream HEAD | Rebase priority |
+## Upstream drift (vs current HEAD `d884ae0`)
+
+| Skill | State | Our divergence from its base | Action |
 |---|---|---|---|
-| `executing-plans` | +3 / −3 (effectively stagnant) | +38 / −15 | low — freeze is nearly free |
-| `writing-plans` | +43 / −14 | +24 / −40 | medium — worth a one-time rebase |
-| `subagent-driven-development` | **+209 / −68 (heavily rewritten)** | +90 / −210 | **high — missing ~200 lines of new upstream work** |
+| `subagent-driven-development` | **rebased 2026-07-17 onto `d884ae0`** | just the 2 wave-dispatch hunks | current — re-review when upstream moves |
+| `writing-plans` | **rebased 2026-07-17 onto `d884ae0`** | just the 2 additive Orchestration-tag hunks | current — re-review when upstream moves |
+| `executing-plans` | at `3bdd66e` (2026-03-08) | +38 / −15 | low — upstream stagnant (+3/−3 since fork), freeze is nearly free |
 
 ## How to rebase a skill onto newer upstream
 
