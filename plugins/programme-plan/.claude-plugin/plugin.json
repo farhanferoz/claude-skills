@@ -1,0 +1,9 @@
+{
+  "name": "programme-plan",
+  "version": "0.1.0",
+  "description": "Structure and maintain the plan for a long, multi-strand programme — several parallel workstreams running for weeks or months, where findings decay and many agents touch the same files. Treats a plan as a cache of disk state: cache less, check mechanically, invalidate in the same turn.",
+  "author": {
+    "name": "Farhan Feroz"
+  },
+  "homepage": "https://github.com/farhanferoz/claude-skills"
+}

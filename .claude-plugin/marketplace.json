@@ -25,6 +25,33 @@
       "source": "./plugins/deep-research-tiered"
     },
     {
+      "name": "research-report",
+      "description": "Author or revise a shareable technical note as a self-contained book chapter, enforced by a hard contract guard, a pdflatex book-chapter build, and a mandatory fresh-reader cold-read gate. Requires pandoc and a pdflatex/texlive install.",
+      "author": {
+        "name": "Farhan Feroz"
+      },
+      "category": "research",
+      "source": "./plugins/research-report"
+    },
+    {
+      "name": "programme-plan",
+      "description": "Structure and maintain the plan for a long, multi-strand programme running for weeks or months, where findings decay and many agents touch the same files. Treats a plan as a cache of disk state: cache less, check mechanically, invalidate in the same turn.",
+      "author": {
+        "name": "Farhan Feroz"
+      },
+      "category": "productivity",
+      "source": "./plugins/programme-plan"
+    },
+    {
+      "name": "orchestration",
+      "description": "Autonomous plan-execution: write an execution-level plan, dispatch it in dependency waves instead of walking the list, and enforce single-writer discipline and the decomposition doctrine with eight guard hooks. Bundles writing-plans, executing-plans, and subagent-driven-development (modified forks of obra/superpowers, MIT) plus the guard hooks and routing policy.",
+      "author": {
+        "name": "Farhan Feroz"
+      },
+      "category": "productivity",
+      "source": "./plugins/orchestration"
+    },
+    {
       "name": "review-suite",
       "description": "Tiered local code review (light -> critical): simplify -> bug/security finders -> false-positive verification -> external second opinion. Bundles tiered-review + find-bugs, fp-check, differential-review, security-review, second-opinion.",
       "author": {

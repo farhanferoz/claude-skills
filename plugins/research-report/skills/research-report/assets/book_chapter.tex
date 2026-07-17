@@ -1,0 +1,72 @@
+% Shared "book chapter" typography for research reports.
+% Governed by notes/research/RESEARCH_REPORT_CONTRACT.md (Formatting section).
+% Engine: pdflatex (mathpazo + helvet are Type1 packages that need it; they fall
+% back to Latin Modern under xelatex). Included by every report build via -H.
+% Set once here, never hand-tuned per document.
+
+% --- Page geometry: narrow margins (wide text block) --------------------------
+\usepackage[letterpaper,top=1in,bottom=1in,left=0.6in,right=0.6in]{geometry}
+
+% --- Book serif text + matching math (Palatino / Pagella) ---------------------
+%     mathpazo is Type1 (URW Palladio): no fontconfig, dodges the known
+%     "fontspec system fonts broken" gotcha on this machine.
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{mathpazo}
+\linespread{1.05}
+
+% --- Microtype: character protrusion removes rivers / loose justification ------
+\usepackage{microtype}
+
+% --- Heading hierarchy: deliberate, book-like spacing -------------------------
+% Serif body + sans-serif headings (the standard professional pairing).
+\usepackage[scaled=0.92]{helvet}   % Helvetica-like sans, scaled to Palatino's size
+\usepackage{titlesec}
+% The title is the only top-level heading and gets a thin rule beneath; the
+% numbered sections (1, Appendix A, References) are subsections and the 1.1-level
+% headings are subsubsections, sized in clear steps. Heading colour is a dark slate.
+\definecolor{headingslate}{RGB}{34,42,53}
+\titleformat{\section}[block]{\sffamily\LARGE\bfseries\color{headingslate}\filcenter}{}{0pt}{}[{\vspace{3pt}{\color{headingslate}\titlerule[0.4pt]}}]
+\titlespacing*{\section}{0pt}{0pt}{1.4\baselineskip}
+\titleformat{\subsection}{\sffamily\Large\bfseries\color{headingslate}}{}{0pt}{}
+\titleformat{\subsubsection}{\sffamily\large\bfseries\color{headingslate}}{}{0pt}{}
+\titlespacing*{\subsection}{0pt}{1.8\baselineskip}{0.5\baselineskip}
+\titlespacing*{\subsubsection}{0pt}{1.1\baselineskip}{0.3\baselineskip}
+
+% --- Figures: render where written, not floated away --------------------------
+\usepackage{graphicx}
+\usepackage{float}
+\floatplacement{figure}{H}
+
+% --- Number every display equation, so any can be cross-referenced ------------
+%     pandoc renders $$...$$ as \[...\]; turn those into numbered equations.
+\AtBeginDocument{%
+  \renewcommand{\[}{\begin{equation}}%
+  \renewcommand{\]}{\end{equation}}%
+}
+
+% --- Unicode glyph shims (text-mode glyphs the base face drops) ---------------
+%     Legitimate prose glyphs only (dashes, section, a few relations). Math
+%     belongs in math mode per the contract; these are a safety net, not a
+%     licence to put formulae in running text.
+\usepackage{newunicodechar}
+\usepackage{textcomp}
+\newunicodechar{—}{\textemdash}
+\newunicodechar{–}{\textendash}
+\newunicodechar{§}{\S}
+\newunicodechar{→}{\ensuremath{\rightarrow}}
+\newunicodechar{⇒}{\ensuremath{\Rightarrow}}
+\newunicodechar{×}{\ensuremath{\times}}
+\newunicodechar{≈}{\ensuremath{\approx}}
+\newunicodechar{≤}{\ensuremath{\leq}}
+\newunicodechar{≥}{\ensuremath{\geq}}
+\newunicodechar{±}{\ensuremath{\pm}}
+\newunicodechar{·}{\ensuremath{\cdot}}
+\newunicodechar{−}{\ensuremath{-}}
+\newunicodechar{σ}{\ensuremath{\sigma}}
+\newunicodechar{μ}{\ensuremath{\mu}}
+\newunicodechar{ξ}{\ensuremath{\xi}}
+
+% Let long code-free identifiers with underscores break instead of overflowing.
+\let\origunderscore\_
+\renewcommand{\_}{\origunderscore\allowbreak}

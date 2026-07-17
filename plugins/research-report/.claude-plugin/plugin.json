@@ -1,0 +1,9 @@
+{
+  "name": "research-report",
+  "version": "0.1.0",
+  "description": "Author or revise a shareable technical note as a self-contained book chapter, enforced by a hard contract guard, a pdflatex book-chapter build, and a mandatory fresh-reader cold-read gate. Requires pandoc and a pdflatex/texlive install.",
+  "author": {
+    "name": "Farhan Feroz"
+  },
+  "homepage": "https://github.com/farhanferoz/claude-skills"
+}

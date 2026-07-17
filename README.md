@@ -91,6 +91,82 @@ fan-out on cheaper models instead of the session model throughout.
 /plugin install deep-research-tiered@claude-skills
 ```
 
+### research-report
+
+Turn working notes into a technical report a colleague with no project context
+and no code access can read start to finish.
+
+- **`research-report`** — drafts or revises the document against a genre
+  contract (no code references, every named object defined inline with its
+  formula, load-bearing math derived, evidence shown as tables/figures), then
+  enforces it with two gates the author cannot fool: a mechanical grep guard and
+  a fresh-subagent cold-read of the *rendered PDF*. Bundles the contract, the
+  book-chapter LaTeX template, the guard, and the build script.
+- **Requires** `pandoc` and a `pdflatex`/texlive install (the template's
+  Palatino/Helvetica packages are Type1, so the engine is pdflatex, not
+  xelatex). Without them the guard and cold-read loop still run; only the PDF
+  build step needs the toolchain.
+
+```
+/plugin install research-report@claude-skills
+```
+
+### programme-plan
+
+Keep one plan coherent across months, many parallel strands, and many agents
+writing the same files.
+
+- **`programme-plan`** — structures a long-lived programme as `MASTER.md` (index
+  + rules only) plus one file per strand, on the principle that *a plan is a
+  cache of disk state and caches go stale*. Bans dated plan files, requires
+  evidence on every done row, and enforces single-writer discipline (fan out on
+  compute, serialise on writes). For a single multi-step task use
+  `writing-plans` instead; this is for programmes that run for weeks.
+
+```
+/plugin install programme-plan@claude-skills
+```
+
+### orchestration
+
+Turn a written plan into an autonomous, hours-long run that works through a
+stack of tasks by itself — dispatching in dependency waves instead of walking
+the list one task at a time.
+
+- **`writing-plans`** — write an execution-level plan whose tasks carry
+  Orchestration tags (`parallel`/`deps`/`tier`/`scale`/`shape`/`verify` and a
+  `Files:` write set) so execution can self-route.
+- **`executing-plans`** — partition the whole plan into dependency waves (a wave
+  = tasks whose deps are met and whose write sets are disjoint), dispatch each
+  wave concurrently, and act as dispatcher + verifier rather than executor.
+  Includes `workflow-compile.md` for compiling a plan into a budget-capped,
+  crash-resumable Workflow.
+- **`subagent-driven-development`** — the in-session variant: fresh subagent per
+  task with two-stage review, dispatched by wave.
+- **Eight guard hooks** (wired automatically on install) that make this safe:
+  `write_set_guard` enforces single-writer discipline (no two subagents write
+  the same path), `orchestrator_check` re-injects the decomposition doctrine
+  every turn, `agent_reaper` records unstopped agents at session end and
+  pre-compaction, plus subagent/foreground/poll-loop guards. All fail-open and
+  inert outside their trigger conditions.
+- **`reference/model-routing-policy.md`** — the router the doctrine points at
+  (which tier for which task shape).
+
+The three skills are **modified forks of [obra/superpowers](https://github.com/obra/superpowers)**
+(MIT, © 2025 Jesse Vincent) — sequential execution was replaced with wave
+dispatch. See the plugin's `NOTICE` for attribution and `MAINTAINERS.md` for the
+fork point and how to rebase onto newer upstream. Pairs with **ccage** for
+unattended runs: ccage-auto keeps the session alive across checkpoints and arms
+its own `autonomous_ask_guard` (not shipped here, to avoid double-registration).
+
+**Requires `python3`** on `PATH` — the guard hooks use it for JSON parsing and
+write-set tracking (they fail open if it is missing, so the skills still work,
+but the guards are what make parallel wave-dispatch safe).
+
+```
+/plugin install orchestration@claude-skills
+```
+
 ### playwright-agents
 
 Listed here for one-command install; lives in its own repo

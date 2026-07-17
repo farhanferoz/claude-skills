@@ -1,0 +1,108 @@
+#!/usr/bin/env bash
+# TeammateIdle hook — the anti-idle enforcement for Agent Teams.
+#
+# Fires when a teammate is about to go idle. Exit 2 = "tasks remain, keep
+# working" (blocks the idle); exit 0 = allow. Fail-open by design: any parse
+# error, missing state, or ambiguity allows the idle — this guard must never
+# trap an agent in a work loop on bad data.
+#
+# The Agent Teams hook payload is EXPERIMENTAL and version-unstable. Claude Code
+# 2.1.206 sent {..., teammate_name, team_name}; 2.1.207 (live-fire 2026-07-13)
+# DROPS both, and the task dir is keyed by a parent team-session id a child's env
+# never exposes. So we no longer require team_name: fast-path on it when present,
+# else fall back to the most-recently-modified team dir (the team that just
+# acted, whose teammate is now idling) — a heuristic whose only failure mode is
+# fail-open. Without teammate_name the "your own open tasks" check is skipped;
+# the "unclaimed unblocked tasks remain" check still applies.
+# NOTE: in 2.1.207 this event was NOT observed to fire for Agent-tool subagents;
+# the fix keeps it correct for whatever context does fire it. Live tasks are
+# tasks/<team>/<id>.json ({status, owner?, blockedBy}).
+#
+# ⚠️ Task files PERSIST after completion, carrying {"status": "completed"} —
+# presence is NOT openness. This header claimed the opposite until 2026-07-16.
+# The code below was already right (it filters on `status`), but the same false
+# premise WAS live in task_completed_guard.sh, where it silently made any task
+# with a blockedBy edge uncompletable forever. Openness is a STATUS, never a
+# stat(). Left stated here so the next editor cannot reintroduce it from a
+# comment.
+
+payload="$(cat 2>/dev/null || true)"
+
+python3 - "$payload" <<'PY'
+import glob, json, os, sys
+
+def allow():
+    sys.exit(0)
+
+try:
+    payload = json.loads(sys.argv[1])
+except Exception:
+    allow()
+
+teammate = payload.get("teammate_name") or ""
+team = payload.get("team_name") or ""
+config_root = os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude")
+
+# Resolve the active team's task dir without depending on team_name (dropped in
+# 2.1.207). A wrong guess only ever fails OPEN.
+task_dir = None
+if team:
+    d = os.path.join(config_root, "tasks", team)
+    if os.path.isdir(d):
+        task_dir = d
+if task_dir is None:
+    dirs = [d for d in glob.glob(os.path.join(config_root, "tasks", "*")) if os.path.isdir(d)]
+    if dirs:
+        task_dir = max(dirs, key=os.path.getmtime)
+if task_dir is None:
+    allow()
+
+try:
+    files = [f for f in os.listdir(task_dir) if f.endswith(".json")]
+except OSError:
+    allow()
+
+open_ids = set()
+tasks = []
+for f in files:
+    try:
+        t = json.load(open(os.path.join(task_dir, f)))
+        open_ids.add(str(t.get("id")))
+        tasks.append(t)
+    except Exception:
+        continue
+
+# A teammate is nagged ONLY about work ALREADY ASSIGNED TO IT.
+#
+# It is NEVER told about unclaimed tasks. That was this guard's original
+# behaviour and it was actively harmful: it named the free task ids and told the
+# teammate to "Run TaskList, claim the next task", which turns every idle worker
+# into a claim-anything worker regardless of its brief. Observed 2026-07-15: an
+# agent briefed "READ-ONLY AUDIT, do not modify any file" claimed a whole new
+# strategy build; a read-only auditor built a 204-line dossier; and a throwaway
+# probe restricted to `tools: Read, Bash, Grep, Glob`, asked only to list its own
+# tool names, used ToolSearch to reach TaskList and claimed a task within ~60s.
+# A worker's brief cannot survive a hook that orders it to go shopping.
+#
+# NOTE (corrected 2026-07-15): the header's claim that this event "was NOT
+# observed to fire for Agent-tool subagents" is FALSE on the current build --
+# the probe above was an Agent-tool subagent and it DID receive this feedback.
+# Assume it fires for every worker.
+#
+# Assigning unclaimed work is the ROOT's job, not a worker's. If the root idles
+# with work outstanding, that is caught by the root's own orchestrator gate.
+own_open = [t for t in tasks
+            if teammate and t.get("owner") == teammate
+            and t.get("status") in ("pending", "in_progress")]
+
+if own_open:
+    sys.stderr.write(
+        "Do not go idle: %d task(s) assigned to YOU are still open (%s). "
+        "Finish or explicitly hand back your OWN assigned work. "
+        "Do NOT claim any other task: only work your dispatch contract names.\n"
+        % (len(own_open), ", ".join("#%s" % t.get("id") for t in own_open)))
+    sys.exit(2)
+
+allow()
+PY
+exit $?
