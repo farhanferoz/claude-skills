@@ -125,6 +125,30 @@ get `TeammateIdle` (exit 2 = unblocked/owned tasks remain → keep working) and
 `~/.claude/hooks/teammate_idle_guard.sh` / `task_completed_guard.sh`,
 registered globally and seeded per cage by `~/.bashrc.d/claude-overrides.sh`.
 
+## Long-running compute: a subagent may author a sweep, never own its execution
+
+A subagent's turn ends when it stops calling tools — so a background job it
+launched has no idle agent left to wake when it finishes, and the completion
+notification has nowhere to land. Measured 2026-07-21: 3 of 3 heavy sweeps
+briefed to run foreground with a raised timeout inside a worker died with the
+worker's turn and 0 of 3 ever reported. **The fix is a split, not a longer
+timeout:**
+
+1. **The worker writes the driver** — a per-cell CLI (`--seed`/`--arm`/`--param`
+   or equivalent), one JSON result per cell landed to disk the moment it's
+   produced, a `--summarize` aggregate mode, and a `--selftest`. Explicit
+   non-goal: *do not run the full grid yourself.*
+2. **The root runs the grid** — via a backgrounded shell call plus a watcher (or
+   a Workflow), then verifies and aggregates the landed results.
+
+If a worker is discovered mid-run blocked on its own long foreground job, adopt
+the orphaned process (check disk + `pgrep` before re-dispatching — it is
+usually still running and largely done) and stop the idle agent so it can't
+wake later and clobber the output. A worker stuck this way can also start
+freelancing destructively (observed: one ran `rm -f` against its own
+in-progress results under a ban on deleting them) — removing the run from its
+scope removes the temptation, which is exactly what the split above does.
+
 ## Model defaults
 
 - **Haiku 4.5** — routing, classification, formatting, small summaries, and
