@@ -127,6 +127,30 @@ writing the same files.
 /plugin install programme-plan@claude-skills
 ```
 
+### review-panel
+
+Run a simulated review panel on your own draft funding application before you
+submit it, and get back only the criticisms that hold up against the text.
+
+- **`review-panel`** — checks the draft against the funder's format limits,
+  builds review copies with unfinished items marked so they are not counted as
+  weaknesses, then runs several independent reviewers section by section (no
+  critical or lenient personas, no rebuttal round), a check of the draft
+  against the author's own brief and rulings, and a moderator that verifies
+  every quoted criticism and ranks the fixes. Funders are described by profile
+  files; a UKRI distributed peer review profile is included. For your own
+  drafts only: funders forbid putting other applicants' work into AI tools.
+- **Requires** Python 3.11+, Poppler (`pdfinfo`, `pdftotext`), and for some
+  steps MuPDF's `mutool` and `pandoc` with `pdflatex`. Reviewers on a second
+  model family need Google's Antigravity CLI (`agy`); without it the panel runs
+  on Claude agents alone.
+- Also published, identical, in
+  [alan-turing-institute/aiphys-skills](https://github.com/alan-turing-institute/aiphys-skills).
+
+```
+/plugin install review-panel@claude-skills
+```
+
 ### orchestration
 
 Turn a written plan into an autonomous, hours-long run that works through a

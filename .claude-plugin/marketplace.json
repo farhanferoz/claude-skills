@@ -61,6 +61,15 @@
       "source": "./plugins/review-suite"
     },
     {
+      "name": "review-panel",
+      "description": "Simulated pre-submission review panel for your own draft grant application: independent reviewers on more than one model family, a check against the author's own brief, and a moderator that verifies every criticism against the text. Configurable per funder; ships a UKRI distributed peer review profile.",
+      "author": {
+        "name": "Farhan Feroz"
+      },
+      "category": "research",
+      "source": "./plugins/review-panel"
+    },
+    {
       "name": "playwright-agents",
       "description": "Wrap Playwright's first-party test agents: pin model/effort, wire the Test MCP into the project's .mcp.json, and verify generated specs with a real test run.",
       "author": {

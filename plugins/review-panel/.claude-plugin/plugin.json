@@ -1,0 +1,9 @@
+{
+  "name": "review-panel",
+  "version": "0.1.0",
+  "description": "Simulated pre-submission review panel for your own draft grant application: independent reviewers on more than one model family, a check against the author's own brief, and a moderator that verifies every criticism against the text. Configurable per funder; ships a UKRI distributed peer review profile.",
+  "author": {
+    "name": "Farhan Feroz"
+  },
+  "homepage": "https://github.com/farhanferoz/claude-skills"
+}
