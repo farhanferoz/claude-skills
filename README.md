@@ -257,6 +257,11 @@ skill.
 /plugin install session-hooks@claude-skills
 ```
 
+`scripts/statusline-command.sh` is the status line: reasoning effort, context used, the 5-hour and 7-day limits,
+prompt-cache state and, in a project with a `RESUME.md`, its open plan items. It needs `jq`. Copy it to
+`~/.claude/statusline-command.sh` and set `"statusLine": {"type": "command", "command": "bash
+~/.claude/statusline-command.sh"}` in `~/.claude/settings.json`.
+
 ### research-method
 
 Procedures for research work, each written from a real failure: **`figure-workflow`** (from agreeing a figure's
