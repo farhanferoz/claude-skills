@@ -1,0 +1,10 @@
+{
+  "name": "talk-deck",
+  "version": "0.1.0",
+  "description": "Procedure for making a talk or slide deck a reviewer accepts: message and audience first, one prototype slide before the rollout, word caps, sourced numbers, render-and-look, cold read. Includes a small deck checker.",
+  "author": {
+    "name": "Farhan Feroz"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/farhanferoz/claude-skills"
+}
