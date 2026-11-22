@@ -105,6 +105,12 @@ run "REGRESSION: a here-string does not swallow the next line" \
 run "command -v only looks a runner up"              'ls tests; command -v bats' ALLOW
 run "REGRESSION: command as a plain prefix still runs" 'command python -m pytest -q' DENY
 
+run "bats -f filter is allowed"                         'bats -f alpha tests' ALLOW
+run "a runner's --help runs nothing"                    'python -m pytest --help' ALLOW
+run "a narrowed run in a subshell group is allowed"     '(cd . && python -m pytest tests/test_alpha.py)' ALLOW
+run "REGRESSION: a bare run in a subshell group is denied" '(python -m pytest -q)' DENY
+run "REGRESSION: a run inside \$( ) is still one word"  'X=$(python -m pytest -q)' DENY
+
 # --- defect 1: pytest's -m marker selector ------------------------------------
 run "marker-filtered run is allowed"            'python -m pytest -m integration' ALLOW
 run "marker without python -m is allowed"       'pytest -m integration' ALLOW

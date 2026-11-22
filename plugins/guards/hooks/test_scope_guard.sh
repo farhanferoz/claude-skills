@@ -199,7 +199,13 @@ RUNNER_PAIRS = {
 # A filter flag means the model already narrowed the run — never second-guess it.
 FILTER_FLAGS = ("-k", "--filter", "--testNamePattern", "-t", "--grep", "-run",
                 "--only", "--changed", "--changedSince", "--onlyChanged",
-                "--last-failed", "--lf", "-e", "--name", "--test", "--example")
+                "--last-failed", "--lf", "-e", "--name", "--test", "--example",
+                # bats' `-f` is its `--filter` (bats --help: "-f, --filter <regex>").
+                # Another runner's `-f` that is not a filter reads as narrowed:
+                # the allow direction, which this guard prefers.
+                "-f")
+# A runner given one of these prints and exits without running a test.
+NO_RUN_FLAGS = ("--help", "-h", "--version")
 
 def _has_filter_flag(toks):
     """Has the caller already narrowed the run?
@@ -217,7 +223,7 @@ def _has_filter_flag(toks):
             if i > 0 and os.path.basename(toks[i - 1]) in ("python", "python3"):
                 continue                    # `python -m pytest` — not a filter
             return True
-        if t in FILTER_FLAGS or head in FILTER_FLAGS:
+        if t in FILTER_FLAGS or head in FILTER_FLAGS or t in NO_RUN_FLAGS:
             return True
     return False
 
@@ -316,6 +322,7 @@ def split_segments(command):
     """
     segs, buf, quote, i = [], [], None, 0
     pending = []                      # heredocs opened on this line
+    parens = []                       # True = a `( ... )` group, False = part of a word
     while i < len(command):
         ch = command[i]
         if quote:
@@ -335,6 +342,21 @@ def split_segments(command):
         if opened:
             buf.append(command[i:opened[2]]); pending.append(opened[:2]); i = opened[2]
             continue
+        # SUBSHELL GROUPS (2026-11-22): `(cd repo && bats -f x tests/a.bats)` kept
+        # the `)` on `a.bats)`, which named no file, so a narrowed run was denied;
+        # and `(python -m pytest -q)` led with `(python`, so a whole-suite run was
+        # missed. A bare `(`/`)` is a command boundary. `$(`, `$((`, `<(` and `>(`
+        # stay inside their word, as before.
+        if ch == "(":
+            in_word = bool(buf) and (buf[-1] in "$<>" or (buf[-1] == "(" and parens and not parens[-1]))
+            parens.append(not in_word)
+            if in_word:
+                buf.append(ch); i += 1; continue
+            segs.append("".join(buf)); buf = []; i += 1; continue
+        if ch == ")":
+            if parens and not parens.pop():
+                buf.append(ch); i += 1; continue
+            segs.append("".join(buf)); buf = []; i += 1; continue
         two = command[i:i + 2]
         if two in ("&&", "||"):
             segs.append("".join(buf)); buf = []; i += 2; continue
