@@ -62,6 +62,7 @@
 payload="$(cat 2>/dev/null || true)"
 
 python3 - "$payload" <<'PY'
+import fnmatch
 import json
 import os
 import re
@@ -166,7 +167,13 @@ ti = p.get("tool_input") or {}
 # because the failure is the decision itself, and the only moment to force the
 # comparison is before the call. Every pass is logged so the ritual risk is
 # auditable: read agent_dispatch_guard.log for one-liners that say nothing.
-# Exempt: dr-* (deep-research workflow internals, launched by a script).
+# Exempt: the subagent types in CCLAUDE_INLINE_EXEMPT_TYPES (comma-separated
+# fnmatch patterns; default `dr-*,web-fetch`). dr-* are deep-research workflow
+# internals launched by a script. web-fetch stands in for the WebFetch tool in a
+# session that lacks it, and the harness calls dispatching it ordinary tool use,
+# so a worker-earns-its-brief line is ritual there: measured 2026-11-12/18, one
+# session wrote a justification just to read a page and another was blocked.
+# The model-pinning check further down still applies to it.
 # TIGHTENED 2026-11-01 (owner "y"): any 40 characters passed, so a reason that
 # only cited a rule ("owner rule sends implementation to Sonnet medium") sent a
 # 4-file config change to a worker that took ~45 min of queue waits and handoffs
@@ -251,13 +258,15 @@ def check_facts(kind, text, ti, exempt):
 
 
 INLINE_MODE = os.environ.get("CCLAUDE_INLINE_CHECK_MODE", "enforce")
+INLINE_EXEMPT_TYPES = os.environ.get("CCLAUDE_INLINE_EXEMPT_TYPES", "dr-*,web-fetch")
 MARK = "INLINE-VS-DISPATCH:"
 report = False
 if INLINE_MODE != "off":
     if TOOL == "Agent":
         text = str(ti.get("prompt") or "")
         kind = "dispatch"
-        exempt = str(ti.get("subagent_type") or "").startswith("dr-")
+        exempt = any(fnmatch.fnmatchcase(str(ti.get("subagent_type") or ""), pat.strip())
+                     for pat in INLINE_EXEMPT_TYPES.split(",") if pat.strip())
     else:
         text = str(ti.get("message") if isinstance(ti.get("message"), str)
                    else json.dumps(ti.get("message")))
@@ -289,7 +298,7 @@ if INLINE_MODE != "off":
                 time.strftime("%Y-%m-%dT%H:%M:%S"),
                 ("PASS-REPORT" if TOOL == "SendMessage" and report else "PASS")
                 if ok else ("BLOCK" if INLINE_MODE == "enforce" else "OBSERVE"),
-                kind, ("" if exempt else "[%s] " % why) + first[:160])]) + "\n")
+                kind, ("[exempt] " if exempt else "[%s] " % why) + first[:160])]) + "\n")
     except OSError:
         pass
     if not ok and INLINE_MODE == "enforce" and why == "worker-already-reported":
@@ -316,8 +325,8 @@ if INLINE_MODE != "off":
             "needing an independent reader. Citing a rule is not a reason.\n"
             "FIRST ask: do I already hold the context (paths, environment, the "
             "diagnosis)? If writing the brief means TRANSCRIBING facts you "
-            "measured, do it inline -- the worker adds latency and ~$5-10, "
-            "nothing else.\n"
+            "measured, do it inline -- the worker adds latency and cost "
+            "(sonnet median $1.33, p90 $4.51 per run), nothing else.\n"
             "DO INSTEAD, either:\n"
             "  1. Do the work inline (usual answer).\n"
             "  2. Or open the prompt/message with one line:\n"

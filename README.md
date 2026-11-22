@@ -208,7 +208,8 @@ logs every decision, allows included, to `$CLAUDE_CONFIG_DIR/<guard>.log`, and e
   `agy_print_guard` catches `agy -p` reporting a success it did not have; `approval_prompt_guard` refuses command
   shapes that make Claude Code stop for a human approval even under `bypassPermissions`.
 - **Before an Agent, SendMessage or Workflow call:** `agent_dispatch_guard` asks a worker to earn its brief (run time
-  or an independent reader); `agent_fanout_cap` caps parallel fan-out; `agent_worktree_base_guard` refuses a worktree
+  or an independent reader; subagent types in `CCLAUDE_INLINE_EXEMPT_TYPES`, default `dr-*,web-fetch`, are exempt);
+  `agent_fanout_cap` caps parallel fan-out; `agent_worktree_base_guard` refuses a worktree
   that would start from a stale base; `workflow_budget_guard` refuses a workflow that carries no budget.
 - **Before a Write:** `clutter_guard` refuses scratch-looking file names in a repository (`lib/junk_names.py`).
 - **After a Write or Edit:** `code_hygiene_check` flags copied code (`scripts/dupcheck.py`), test growth
