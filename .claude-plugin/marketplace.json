@@ -15,7 +15,7 @@
       "category": "productivity",
       "source": {
         "source": "git-subdir",
-        "url": "farhanferoz/ccage",
+        "url": "https://github.com/farhanferoz/ccage.git",
         "path": "plugin",
         "ref": "v0.26.0"
       },
