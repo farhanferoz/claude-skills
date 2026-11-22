@@ -213,6 +213,9 @@ logs every decision, allows included, to `$CLAUDE_CONFIG_DIR/<guard>.log`, and e
 - **Before a Write:** `clutter_guard` refuses scratch-looking file names in a repository (`lib/junk_names.py`).
 - **After a Write or Edit:** `code_hygiene_check` flags copied code (`scripts/dupcheck.py`), test growth
   (`hooks/test_growth_check.py`) and model loads that skip a settings lookup.
+- **On demand:** `scripts/structure_ratchet.py --check` lets ruff's code-shape rules (`PLR0913`, `PLR0915`, `PLR0912`,
+  `C901`) only get better in a repository that holds a `.structure-baseline.json`; `--update` lowers the baseline.
+  No hook calls it, and it exits 0 in a repository without a baseline.
 - **Setting:** `LM_LOOKUP_EXEMPT_GLOBS` (asked for when you enable the plugin; default empty) lists colon-separated
   path globs the model-load check never flags.
 - Every guard with a `*.selftest.sh` beside it can be checked with `bash <name>.selftest.sh`.
