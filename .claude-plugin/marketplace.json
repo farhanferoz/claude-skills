@@ -117,6 +117,15 @@
       },
       "category": "research",
       "source": "./plugins/research-method"
+    },
+    {
+      "name": "talk-deck",
+      "description": "Procedure for a talk or slide deck the presenter accepts: message and audience first, one prototype slide before the rollout, word caps, sourced numbers, render and look, cold read; with a deck checker.",
+      "author": {
+        "name": "Farhan Feroz"
+      },
+      "category": "productivity",
+      "source": "./plugins/talk-deck"
     }
   ]
 }

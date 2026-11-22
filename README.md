@@ -275,6 +275,18 @@ message to rendered, checked output), **`methodology-review`** (reviewing a rese
 /plugin install research-method@claude-skills
 ```
 
+### talk-deck
+
+**`talk-deck`**: a procedure for making a talk or slide deck the presenter accepts, written from one deck's
+corrections. Agree the message and audience first, build one prototype slide before the rest, keep each slide to
+one message with a word cap, give every number a unit, date and source, render every slide and look at it, then
+have a fresh reader go through it cold. It uses whatever already makes slides (an HTML page, the pptx skill, a
+slide artifact). `scripts/check_deck.py` checks an HTML or Markdown deck for word caps and unsourced numbers.
+
+```
+/plugin install talk-deck@claude-skills
+```
+
 ### playwright-agents
 
 Listed here for one-command install; lives in its own repo
