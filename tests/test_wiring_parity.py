@@ -37,3 +37,15 @@ def test_plugin_wiring_matches_the_settings_wiring() -> None:
         problems += [f"{hooks_json.parent.parent.name}: settings wires {r}, plugin does not"
                      for r in settings - plugin if r[2] in shipped]
     assert not problems, "\n".join(problems)
+
+
+INSTALLED_STANDARD = os.environ.get("PARITY_STANDARD")
+
+
+@pytest.mark.skipif(not INSTALLED_STANDARD, reason="set PARITY_STANDARD to an installed copy of the coding standard")
+def test_installed_coding_standard_is_the_published_one() -> None:
+    """Claude Code does not load a rules file through a symlink that leaves the working directory (memory.md,
+    "Share rules across projects with symlinks"), so a maintainer's ~/.claude/rules holds an installed copy. It must
+    stay byte-identical to this one: edit the copy here, then reinstall."""
+    published = (ROOT / "plugins/coding-standard/reference/coding-standards.md").read_bytes()
+    assert Path(INSTALLED_STANDARD).read_bytes() == published, "installed standard drifted; edit the published copy"
