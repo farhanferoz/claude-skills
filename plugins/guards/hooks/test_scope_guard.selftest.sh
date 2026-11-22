@@ -94,6 +94,14 @@ run "a loop over variable-named bats files is allowed" \
   'for f in tests/test_flow.bats; do bats "$f" 2>&1 | tail -2; done' ALLOW
 rm -rf "$OTHER_HOME"
 
+# --- 2026-11-22: heredoc bodies are data, not commands -----------------------
+run "a heredoc writing test code, then no runner, is allowed" \
+  $'cat > tests/test_new.py <<\'EOF\'\nimport pytest\nEOF\nruff check .' ALLOW
+run "REGRESSION: a bare run after a heredoc is still denied" \
+  $'cat > notes.txt <<\'EOF\'\nhello\nEOF\npython -m pytest -q' DENY
+run "REGRESSION: a here-string does not swallow the next line" \
+  $'cat <<<"x"\npython -m pytest -q\nx' DENY
+
 # --- defect 1: pytest's -m marker selector ------------------------------------
 run "marker-filtered run is allowed"            'python -m pytest -m integration' ALLOW
 run "marker without python -m is allowed"       'pytest -m integration' ALLOW

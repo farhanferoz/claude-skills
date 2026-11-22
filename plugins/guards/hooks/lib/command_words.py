@@ -23,6 +23,7 @@ Deviation from "parse with shlex": shlex throws away which quote a word was in, 
 existing shlex users (container_lifecycle_guard, docker_hostnet_guard,
 foreground_long_job_guard, test_scope_guard) tokenise with the same separators and prefix
 list; only container_lifecycle_guard and the five other hooks in this change use this one.
+test_scope_guard takes only its heredoc handling from here (`heredoc_at`, `skip_heredoc`).
 
 Fail-open: `commands()` returns [] for text it cannot scan; callers allow on [].
 """
@@ -35,6 +36,8 @@ ASSIGN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
 REDIRECT = re.compile(r"^\d*[<>]")
 DURATION = re.compile(r"^\d[\d.]*[smhd]?$")
 SHELLS = {"bash", "sh", "zsh", "dash"}
+# `<<DELIM`, `<<-DELIM`, `<<'DELIM'`, `<<"DELIM"`, `<<\DELIM` (bash syntax, a fact)
+HEREDOC = re.compile(r"<<(-?)\s*(?:'([^']*)'|\"([^\"]*)\"|\\?([^\s;&|()<>]+))")
 # option flags of each prefix that consume the next word
 PREFIX_VALUE_FLAGS = {
     "sudo": {"-u", "-g", "-C", "-h", "-p", "-U", "-D", "-r", "-t"},
@@ -106,7 +109,7 @@ def _parse(s, i, closer, out):
             end_command()
             i += 1
             for delim, strip in heredocs:
-                i = _skip_heredoc(s, i, delim, strip)
+                i = skip_heredoc(s, i, delim, strip)
             heredocs.clear()
             continue
         if c in " \t":
@@ -167,13 +170,20 @@ def _parse(s, i, closer, out):
             subst = started = True
             cur.append("`...`")
             continue
-        if s.startswith("<<", i) and not s.startswith("<<<", i):
-            m = re.match(r"<<(-?)\s*(?:'([^']*)'|\"([^\"]*)\"|\\?([^\s;&|()<>]+))", s[i:])
-            if m:
-                end_word()
-                heredocs.append((m.group(2) or m.group(3) or m.group(4), bool(m.group(1))))
-                i += m.end()
-                continue
+        if s.startswith("<<<", i):
+            # A here-string, not a heredoc. Consume all three `<`: stepping one at a time
+            # read the last two as a heredoc opener, so `cat <<<"x"` swallowed every
+            # following line up to one reading `x` and the commands there vanished.
+            cur.append("<<<")
+            started = True
+            i += 3
+            continue
+        opened = heredoc_at(s, i)
+        if opened:
+            end_word()
+            heredocs.append(opened[:2])
+            i = opened[2]
+            continue
         if c in ";&|(){}" and not (c in "{}" and started):
             if c in "&|" and i + 1 < n and s[i + 1] == c:
                 i += 1
@@ -191,7 +201,19 @@ def _parse(s, i, closer, out):
     return n
 
 
-def _skip_heredoc(s, i, delim, strip):
+def heredoc_at(s: str, i: int) -> tuple[str, bool, int] | None:
+    """The heredoc opened at s[i] as (delimiter, strip_tabs, index after the opener), or
+    None. A here-string `<<<` opens none; the caller consumes it whole."""
+    if s.startswith("<<<", i):
+        return None
+    m = HEREDOC.match(s, i)
+    if not m:
+        return None
+    return m.group(2) or m.group(3) or m.group(4), bool(m.group(1)), m.end()
+
+
+def skip_heredoc(s: str, i: int, delim: str, strip: bool) -> int:
+    """Index just past the body of a heredoc whose body starts at s[i]."""
     n = len(s)
     while i < n:
         j = s.find("\n", i)

@@ -118,7 +118,7 @@ esac
 
 # The payload goes in on fd 3, not as an argument: one argument is capped at 128 KB and
 # a Post payload carries the whole tool output ("Argument list too long", measured).
-python3 - 3<<<"$payload" <<'PY'
+HOOK_LIB="$(dirname "${BASH_SOURCE[0]}")/lib" python3 - 3<<<"$payload" <<'PY'
 import json
 import os
 import re
@@ -128,6 +128,9 @@ import signal
 import subprocess
 import sys
 import time
+
+sys.path.insert(0, os.environ["HOOK_LIB"])
+from command_words import heredoc_at, skip_heredoc  # noqa: E402
 
 # HARD CAPS (2026-10-24: an unbounded loop in this guard grew three hook children to
 # 34, 23 and 10 GB on a shared machine). Whatever goes wrong below, the process is
@@ -298,8 +301,16 @@ def split_segments(command):
     live-fired against this guard twice on 2026-08-11, both times while trying to
     audit it. Quotes are tracked one character at a time; a `|`, `;` or `&&`
     inside them is data, not a pipeline.
+
+    HEREDOC BODIES ARE DATA TOO (2026-11-22). Each body line was split off as a
+    segment, so `cat > tests/test_x.py <<'EOF'` holding the line `import pytest`
+    read as a bare `pytest` run (the runner may follow one leading word) and a
+    command that only WROTE a test file was denied as a whole-suite run, twice in
+    one session. The opener stays in its segment; the body is skipped at the
+    newline, with the same scanner lib/command_words.py uses.
     """
     segs, buf, quote, i = [], [], None, 0
+    pending = []                      # heredocs opened on this line
     while i < len(command):
         ch = command[i]
         if quote:
@@ -313,6 +324,12 @@ def split_segments(command):
             buf.append(ch)
             i += 1
             continue
+        if command.startswith("<<<", i):  # a here-string: never a heredoc opener
+            buf.append("<<<"); i += 3; continue
+        opened = heredoc_at(command, i)
+        if opened:
+            buf.append(command[i:opened[2]]); pending.append(opened[:2]); i = opened[2]
+            continue
         two = command[i:i + 2]
         if two in ("&&", "||"):
             segs.append("".join(buf)); buf = []; i += 2; continue
@@ -323,7 +340,12 @@ def split_segments(command):
             # this guard 2026-08-27 while running a single test file.
             buf.pop(); buf.append(" "); i += 1; continue
         if ch in ";|\n":
-            segs.append("".join(buf)); buf = []; i += 1; continue
+            segs.append("".join(buf)); buf = []; i += 1
+            if ch == "\n":
+                for delim, strip in pending:
+                    i = skip_heredoc(command, i, delim, strip)
+                pending.clear()
+            continue
         buf.append(ch)
         i += 1
     segs.append("".join(buf))
