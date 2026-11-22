@@ -275,6 +275,11 @@ def leading(toks):
         t = toks[i]
         base = os.path.basename(t)
         if ENV_ASSIGN.match(t) or base in WRAPPERS:
+            # `command -v X` / `command -V X` only LOOK X up (POSIX): nothing runs.
+            # Read as a wrapper it left a bare `bats`, and a command ending in
+            # `command -v bats` was denied as a whole-suite run (2026-11-22).
+            if base == "command" and i + 1 < len(toks) and toks[i + 1] in ("-v", "-V"):
+                return []
             i += 1
             while i < len(toks) and toks[i].startswith("-"):
                 i += 1

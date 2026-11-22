@@ -23,6 +23,8 @@ bash_case 2 "10-27 shape: echo the env value" 'echo "$LLM_CONFIG_JSON" | head -c
 bash_case 2 "ssm read with decryption" 'aws ssm get-parameter --name /webapp/prod/LLM_CONFIG_JSON --with-decryption --profile webapp'
 # The obvious ways around it
 bash_case 2 "here-string does not hide the next line (command_words)" $'cat <<<"x"\necho "$LLM_CONFIG_JSON"\nx'
+bash_case 0 "command -v only looks names up (command_words)" 'command -v cat secrets/llm_config.json'
+bash_case 2 "REGRESSION: command as a plain prefix still reads it" 'command cat secrets/llm_config.json'
 bash_case 2 "absolute path" 'head -c 2000 /home/user/dev/webapp/backend/secrets/llm_config.json'
 bash_case 2 "python -c opening it" "python3 -c \"import json; print(json.load(open('secrets/llm_config.json')))\""
 bash_case 2 "inside bash -c" "bash -c 'cat secrets/supabase_prod.json'"

@@ -102,6 +102,9 @@ run "REGRESSION: a bare run after a heredoc is still denied" \
 run "REGRESSION: a here-string does not swallow the next line" \
   $'cat <<<"x"\npython -m pytest -q\nx' DENY
 
+run "command -v only looks a runner up"              'ls tests; command -v bats' ALLOW
+run "REGRESSION: command as a plain prefix still runs" 'command python -m pytest -q' DENY
+
 # --- defect 1: pytest's -m marker selector ------------------------------------
 run "marker-filtered run is allowed"            'python -m pytest -m integration' ALLOW
 run "marker without python -m is allowed"       'pytest -m integration' ALLOW

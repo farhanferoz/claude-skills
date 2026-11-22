@@ -241,6 +241,8 @@ def _emit(words, out):
             assigns[k] = v
             i += 1
         elif base in PREFIX_VALUE_FLAGS:
+            if base == "command" and i + 1 < len(words) and words[i + 1].text in ("-v", "-V"):
+                return  # `command -v X` only looks X up (POSIX): no command runs
             i += 1
             flags = PREFIX_VALUE_FLAGS[base]
             while i < len(words):
