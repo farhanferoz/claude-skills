@@ -17,12 +17,23 @@ independent, so install only the ones you want.
 
 ## Plugins
 
-### Session continuity: see ccage
+### session-continuity
 
-`/checkpoint`, `/keepwarm` and the hooks that read `RESUME.md` back after `/clear` now ship with
-[ccage](https://github.com/farhanferoz/ccage), which installs them into every project. The `session-continuity`
-plugin that used to live here was an older second copy and has been retired. The chat-only `session-handoff` skill
-moved to the `session-hooks` plugin below.
+Carry a session's state across `/clear`, with or without [ccage](https://github.com/farhanferoz/ccage):
+
+- **`/checkpoint`** saves the session's state into `RESUME.md` (and bootstraps `RESUME.md` and `CHANGELOG.md` in a
+  repository that has none).
+- **`/keepwarm`** keeps the prompt cache warm while you step away, with a small self-wake turn every N minutes.
+- **A SessionStart hook** delivers `RESUME.md` and `DECISIONS.md` back into the session after `/clear`, a resume or a
+  compaction, split into parts under the hook output cap.
+
+```
+/plugin install session-continuity@claude-skills
+```
+
+The plugin's files live in ccage's `plugin/` folder and install from a pinned ccage release tag. If ccage is also
+installed, its own copy of the hook takes over and the plugin's hook stays silent, so nothing is delivered twice. The
+chat-only `session-handoff` skill is in the `session-hooks` plugin below.
 
 ### review-suite
 

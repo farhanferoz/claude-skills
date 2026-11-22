@@ -7,6 +7,21 @@
   },
   "plugins": [
     {
+      "name": "session-continuity",
+      "description": "Save session state into RESUME.md with /checkpoint, keep the prompt cache warm with /keepwarm, and have RESUME.md and DECISIONS.md delivered after /clear by a SessionStart hook. Works without ccage.",
+      "author": {
+        "name": "Farhan Feroz"
+      },
+      "category": "productivity",
+      "source": {
+        "source": "git-subdir",
+        "url": "farhanferoz/ccage",
+        "path": "plugin",
+        "ref": "v0.26.0"
+      },
+      "homepage": "https://github.com/farhanferoz/ccage"
+    },
+    {
       "name": "deep-research-tiered",
       "description": "Cost-tiered deep research: decompose in-session, approve scope, then a Sonnet-tiered fan-out (search -> fetch -> three-way verify with Opus appeals -> synthesize) producing a cited report. ~10x cheaper than all-Opus deep research; bundles the six dr-* agents it drives.",
       "author": {
