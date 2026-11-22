@@ -96,6 +96,11 @@ except Exception:
     allow()
 
 tool_input = p.get("tool_input") or {}
+# Logged for diagnosis. Measured 2026-11-22: a Monitor() call reaches this hook as
+# tool_name "Bash" with only command and description, the same as a foreground Bash
+# call, so the two cannot be told apart here.
+tool = p.get("tool_name") or "?"
+keys = ",".join(sorted(tool_input))
 cmd = tool_input.get("command") or ""
 if not cmd:
     allow()
@@ -142,8 +147,8 @@ snippet = cmd[:200].replace("\n", " ")
 def note(tag):
     try:
         stamp = time.strftime("%Y-%m-%dT%H:%M:%S")
-        line = "%s %s who=%s shape=%s narrow=%d refs_output=%d timeout=%s: %s" % (
-            stamp, tag, who, shape, int(narrow), int(polls_output), timeout,
+        line = "%s %s who=%s tool=%s keys=%s shape=%s narrow=%d refs_output=%d timeout=%s: %s" % (
+            stamp, tag, who, tool, keys, shape, int(narrow), int(polls_output), timeout,
             snippet)
         prev = open(log).read().splitlines()[-499:] if os.path.exists(log) else []
         open(log, "w").write("\n".join(prev + [line]) + "\n")
@@ -180,7 +185,10 @@ else:
         "  1. Background the WAIT itself — Bash(run_in_background: true, command: "
         "\"until <cond>; do sleep 1; done\"). You get ONE completion notification "
         "when it exits and keep working meanwhile; the session never freezes.\n"
-        "  2. Or use Monitor() to stream events from the job as they occur.\n"
+        "  2. Or use Monitor() with a command that streams lines, such as "
+        "`tail -f <log> | grep --line-buffered <pattern>`. A Monitor command that is "
+        "itself a sleep loop reaches this hook as a plain foreground Bash call and is "
+        "refused the same way.\n"
         "  3. If the user asked you to watch/monitor/wait on a long job, invoke "
         "the `watch-job` skill — it is the sanctioned path for exactly this and "
         "picks the right mechanism for you.\n"
