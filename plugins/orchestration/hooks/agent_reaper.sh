@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# PreCompact + SessionEnd — never lose the NAME of a running agent at a context
-# boundary.
+# PreCompact + SessionEnd + SessionStart — never lose the NAME of a running agent
+# at a context boundary, and never let the next session act on a stale snapshot of
+# who was running (SessionStart re-measures; see that branch for the incident).
 #
 # THE INCIDENT (2026-07-15): a session was /clear'ed with 8 teammates running.
 # The clear wiped the orchestrator's memory of them; it did NOT stop them. The
@@ -67,6 +68,12 @@ from pathlib import Path
 _FRESH_MIN = 10.0
 _HEADING = "### Unstopped agents at last context boundary"
 _ID_DISALLOWED = re.compile(r"[^A-Za-z0-9._-]")
+# This hook's OWN output format, reused as the input of the SessionStart
+# re-measure below: every recorded agent line ends "TaskStop <stem>", and a stem
+# is always the "agent-*" filename of its transcript. Keying on a marker this
+# file writes itself is what keeps the re-measure free of any guess about the
+# English a checkpoint might use to claim an agent is dead.
+_STOP_MARKER = re.compile(r"TaskStop\s+(agent-[A-Za-z0-9._-]+)")
 # A description is prose, so it must keep spaces -- but it is model-written text
 # landing in RESUME.md, so control bytes and newlines (which could forge a
 # RESUME bullet) still have to go. Two sinks, two rules.
@@ -125,6 +132,95 @@ def breadcrumb(note: str) -> None:
         log.write_text("\n".join(prev + [line.rstrip()]) + "\n")
     except OSError:
         pass
+
+
+def resume_path():
+    """The RESUME file this session's records belong to, or None.
+
+    Factored out of record() so the SessionStart re-measure reads exactly the
+    file the boundary hooks write; a re-measure pointed at a different RESUME
+    would report on agents nobody recorded. Keep the two in step.
+    """
+    # THE PROJECT ROOT, not the payload's cwd -- see record() for the measured
+    # reason (a session that had cd'd wrote into a subdirectory RESUME).
+    root = os.environ.get("CLAUDE_PROJECT_DIR") or cwd
+    if not root:
+        return None
+    slot = os.environ.get("CCAGE_SLOT", "")
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", slot or ""):
+        slot = ""
+    path = Path(root) / ("RESUME.%s.md" % slot if slot else "RESUME.md")
+    return path if path.exists() else None
+
+
+# ---- SessionStart: RE-MEASURE liveness, never re-read the snapshot ----------
+# WHY THIS EVENT EXISTS. The boundary hooks above write a SNAPSHOT of who was
+# running, and RESUME says so in its own preamble. But the next session reads
+# that snapshot as if it were current, and /checkpoint's SS3 step 2 ("keep
+# carried state verbatim") guarantees it is carried forward untouched -- so the
+# older the line, the more confidently wrong it reads.
+#
+# MEASURED 2026-09-12 (a research project). RESUME's '### Now' told the next
+# session "TWO WORKERS WERE KILLED BY THIS CHECKPOINT and must be re-dispatched"
+# while all four were alive; one went on writing a 421-line source file for
+# another fifty minutes. Two hundred lines below, this hook's own record said
+# "was NOT stopped ... If still live (mtime!)". The file contained its own
+# refutation and the prose won, because prose loads first and nothing re-checked.
+# Acting on it would have put a second agent onto files a live agent was writing.
+#
+# THE MEASUREMENT IS A STAT, NOT A QUERY. Liveness here is a local file mtime,
+# so re-measuring costs a glob and a stat per recorded agent: no network, no
+# cluster, and no model tokens at all unless something is genuinely live. That
+# is the argument for re-measuring at READ time rather than validating at WRITE
+# time -- validating re-checks every carried claim at every checkpoint forever,
+# this answers the one question that matters, once, when it matters.
+#
+# SILENT unless something is live. A boundary whose agents all really did finish
+# prints nothing, so the common case is free.
+if event == "SessionStart":
+    rp = resume_path()
+    if rp is None:
+        breadcrumb("SessionStart: no RESUME -- nothing to re-measure")
+        allow()
+    try:
+        recorded = _STOP_MARKER.findall(rp.read_text(errors="replace"))
+    except OSError:
+        recorded = []
+    if not recorded:
+        breadcrumb("SessionStart: no recorded agents")
+        allow()
+    # Sessions are siblings of this session's transcript. An agent recorded by an
+    # EARLIER session goes on writing into THAT session's subagents dir (and, once
+    # re-parented after a /clear, into this one's too), so search every sibling and
+    # take the newest write -- looking only at this session's dir reports a live
+    # agent as absent, which is the same false "it is gone" this hook exists to stop.
+    sessions_root = parent.parent
+    now = time.time()
+    seen, rows = set(), []
+    for stem in recorded:
+        if stem in seen:
+            continue
+        seen.add(stem)
+        newest = 0.0
+        for t in sessions_root.glob("*/subagents/%s.jsonl" % stem):
+            try:
+                newest = max(newest, t.stat().st_mtime)
+            except OSError:
+                continue
+        if newest > 0.0:
+            rows.append((stem, (now - newest) / 60.0))
+    live_now = sorted([r for r in rows if r[1] < _FRESH_MIN], key=lambda r: r[1])
+    breadcrumb("SessionStart: %d recorded, %d live" % (len(rows), len(live_now)))
+    if live_now:
+        sys.stdout.write(
+            "AGENT LIVENESS RE-MEASURED just now from transcript mtimes. RESUME's "
+            "recorded agents are a PAST SNAPSHOT; these are writing RIGHT NOW:\n"
+            + "".join("  - %s -- last wrote %.1f min ago: STILL LIVE\n" % (stem, mins)
+                      for stem, mins in live_now)
+            + "So do NOT re-dispatch their work, and do NOT believe any line saying a "
+              "checkpoint or /clear killed them. Harvest what they produce, or stop one "
+              "by that bare id with TaskStop.\n")
+    allow()
 
 
 if not sub_dir.is_dir():
@@ -197,16 +293,28 @@ if not live:
 
 
 def record(lines):
-    """Append the names to RESUME.md so they survive the boundary. RESUME.md is
-    read back into the next session by resume_autoload.sh (SessionStart), which
+    """Append the names to the session's RESUME so they survive the boundary. It
+    is read back into the next session by resume_autoload.sh (SessionStart), which
     is the ONLY reason a /clear becomes recoverable. flock-guarded: /checkpoint
     and ccage's watcher also write this file. A skipped line beats a corrupt
     RESUME, so give up rather than write unsynchronized."""
-    if not cwd:
+    # THE PROJECT ROOT, not the payload's cwd: RESUME lives at the root, while
+    # cwd is "the current working directory when the hook is invoked" and it
+    # follows Claude's own `cd` -- MEASURED 2026-08-14 with a probe hook fired
+    # from a subdirectory (payload cwd=<repo>/tests, CLAUDE_PROJECT_DIR=<repo>).
+    # Keyed on cwd, a session that had cd'd wrote its agent names into a
+    # subdirectory RESUME that no autoloader ever reads -- the same "one
+    # workstream's state in another's record" failure the slot fix below
+    # addresses, by a different route. Falls back to cwd when the var is absent.
+    # Root/slot resolution, and the "never create a RESUME in a repo that does
+    # not use one" rule, live in resume_path() -- shared with the SessionStart
+    # re-measure so the two can never read and write different files. A slotted
+    # session (CCAGE_SLOT) owns RESUME.<slot>.md; writing its agent names into
+    # the plain file puts one workstream's state in another's record (observed
+    # 2026-08-12/13, rollout-slot agents landing in the trunk RESUME).
+    path = resume_path()
+    if path is None:
         return
-    path = Path(cwd) / "RESUME.md"
-    if not path.exists():
-        return  # never create RESUME.md in a repo that doesn't use one
     stamp = datetime.now(timezone.utc).isoformat()
     try:
         with path.open("a+") as f:

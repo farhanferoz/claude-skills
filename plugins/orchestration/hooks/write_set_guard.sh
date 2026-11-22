@@ -108,9 +108,15 @@ if not agent_id:
 # at the repo root. Absent file => no protection, so this is opt-in and inert by
 # default rather than a surprise. Workers are blocked; the main thread is not.
 def protected_globs():
-    """Globs only the root may write, from <cwd>/.claude-single-writer."""
+    """Globs only the root may write, from <project>/.claude-single-writer.
+
+    Anchored on CLAUDE_PROJECT_DIR, not the payload's cwd: the file lives at the
+    REPO ROOT, while cwd follows Claude's own `cd` (measured 2026-08-14). Keyed
+    on cwd, one `cd` into a subdirectory made the file unreadable and this guard
+    returned "no protection" — failing open exactly when it should bite."""
+    root = os.environ.get("CLAUDE_PROJECT_DIR") or p.get("cwd") or ""
     try:
-        with open(os.path.join(p.get("cwd") or "", ".claude-single-writer")) as f:
+        with open(os.path.join(root, ".claude-single-writer")) as f:
             return [ln.strip() for ln in f
                     if ln.strip() and not ln.lstrip().startswith("#")]
     except OSError:
@@ -132,6 +138,68 @@ for pattern in protected_globs():
             sys.exit(2)
         allow()
 
+# ---------------------------------------------------------------------------
+# SELF-HEALING CLAIMS (added 2026-09-15, after this guard blocked three workers
+# in one session on claims held by agents that had been stopped hours earlier).
+#
+# The defect: a claim is recorded on first write and NEVER released. There is no
+# unclaim path, so a FINISHED worker blocks the next one indefinitely, and the
+# only remedy was hand-editing this registry -- during which a live worker's
+# claim was stripped off a file carrying 72 uncommitted lines, because the
+# human check was "is it clean?" answered from a misread command.
+#
+# So the machine does it, and the check that failed by hand is the gate:
+#   stale owner AND file clean  -> hand the claim over, log it, allow
+#   stale owner AND file DIRTY  -> still block. Uncommitted work is the exact
+#                                  thing a wrong release destroys.
+#   live owner                  -> still block. That is the real collision this
+#                                  guard exists for, and it is unchanged.
+# Anything unverifiable counts as DIRTY/LIVE: this only ever relaxes the block
+# on evidence, never on the absence of it.
+STALE_MIN = int(os.environ.get("CCLAUDE_WRITESET_STALE_MIN", "15") or 15)
+
+
+def owner_is_stale(owner_id):
+    """True when the owning agent's transcript has not been written recently.
+
+    A live worker writes its transcript every few tool calls; a stopped one
+    never does. Not found at all -> stale, since an agent that left no
+    transcript cannot be mid-write."""
+    import glob as _glob
+    pat = os.path.join(config, "projects", "*", "*", "subagents",
+                       "agent-%s.jsonl" % owner_id)
+    newest = None
+    for f in _glob.glob(pat):
+        try:
+            m = os.path.getmtime(f)
+        except OSError:
+            continue
+        if newest is None or m > newest:
+            newest = m
+    if newest is None:
+        return True
+    return (time.time() - newest) > STALE_MIN * 60
+
+
+def file_is_clean(fp):
+    """True ONLY on positive evidence that the file holds no uncommitted work.
+
+    Every failure mode -- not a repo, git missing, timeout, staged-but-uncommitted
+    -- returns False and keeps the block. Releasing a claim on unsaved work is the
+    one outcome worth a dozen false blocks."""
+    import subprocess
+    root = os.environ.get("CLAUDE_PROJECT_DIR") or p.get("cwd") or os.path.dirname(fp)
+    try:
+        for args in (["git", "diff", "--quiet", "HEAD", "--", fp],
+                     ["git", "diff", "--quiet", "--cached", "HEAD", "--", fp]):
+            r = subprocess.run(args, cwd=root, capture_output=True, timeout=5)
+            if r.returncode != 0:
+                return False
+        return True
+    except Exception:
+        return False
+
+
 state_dir = os.path.join(config, "write_sets")
 state_path = os.path.join(state_dir, "%s.json" % session_id.replace("/", "_"))
 try:
@@ -141,8 +209,30 @@ except (OSError, ValueError):
     state = {}
 
 owner = state.get(path)
+
+def _persist(st):
+    try:
+        tmp = state_path + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(st, f)
+        os.replace(tmp, state_path)
+    except OSError:
+        pass
+
+
 if owner and owner != agent_id:
-    note("COLLISION mode=%s path=%s owner=%s intruder=%s" % (MODE, path, owner, agent_id))
+    stale = owner_is_stale(owner)
+    clean = file_is_clean(path) if stale else False
+    if stale and clean:
+        state[path] = agent_id
+        _persist(state)
+        note("REASSIGN mode=%s path=%s from=%s to=%s (owner stale >%dmin, file clean)"
+             % (MODE, path, owner, agent_id, STALE_MIN))
+        allow()
+    reason = ("owner is STILL LIVE" if not stale
+              else "owner is stale BUT the file has UNCOMMITTED changes")
+    note("COLLISION mode=%s path=%s owner=%s intruder=%s reason=%s"
+         % (MODE, path, owner, agent_id, reason))
     if MODE == "enforce":
         sys.stderr.write(
             "SHARED WRITE SET: '%s' was already written by agent '%s'; you are '%s'.\n"
@@ -151,19 +241,16 @@ if owner and owner != agent_id:
             "Return your finding to the orchestrator and let IT write this file "
             "(single-writer discipline). If you genuinely own this file now, say so "
             "and have the orchestrator confirm the handoff.\n"
-            % (path, owner, agent_id))
+            "WHY THIS DID NOT AUTO-RELEASE: %s. A stale claim on a CLEAN file is handed "
+            "over automatically; a stale claim on a file with uncommitted changes is not, "
+            "because releasing it is how unsaved work gets destroyed.\n"
+            % (path, owner, agent_id, reason))
         sys.exit(2)
     allow()
 
 if not owner:
     state[path] = agent_id
-    try:
-        tmp = state_path + ".tmp"
-        with open(tmp, "w") as f:
-            json.dump(state, f)
-        os.replace(tmp, state_path)
-    except OSError:
-        pass
+    _persist(state)
     note("claim mode=%s path=%s agent=%s" % (MODE, path, agent_id))
 
 allow()

@@ -11,7 +11,7 @@ export const meta = {
 }
 
 // Tiered fork of the bundled deep-research workflow (extracted from CC 2.1.165).
-// Config validated empirically 2026-06-05: per-stage model A/B
+// Config validated empirically 2026-06-05 (see ccage docs): per-stage model A/B
 // (Haiku/Sonnet/Opus search + extraction), 16-claim verification A/B vs Opus,
 // 12-claim three-way verdict pilot, prompt-fix tests, grounded-synthesis re-run.
 // Differences from the bundled script:
@@ -55,7 +55,7 @@ const CENTRAL_VOTES = (Number.isInteger(A.centralVotes) && A.centralVotes > 0) ?
 const CENTRAL_KILL = Math.floor(CENTRAL_VOTES / 2) + 1 // majority refutes kill: 3→2, 1→1
 const MAX_VERIFY_CLAIMS = (Number.isInteger(A.maxVerifyClaims) && A.maxVerifyClaims > 0) ? A.maxVerifyClaims : 25
 const MAX_APPEALS = (Number.isInteger(A.maxAppeals) && A.maxAppeals >= 0) ? A.maxAppeals : 5
-const SYNTH_TYPE = A.synthEffort === 'max' ? 'deep-research-tiered:dr-synthesizer-max' : 'deep-research-tiered:dr-synthesizer'
+const SYNTH_TYPE = A.synthEffort === 'max' ? 'dr-synthesizer-max' : 'dr-synthesizer'
 // Scripts cannot call Date.now(); the skill passes today's date for synthesis grounding.
 const TODAY = (typeof A.today === 'string' && A.today.trim()) || ''
 
@@ -244,9 +244,13 @@ const APPEAL_PROMPT = (claim, tally) =>
 // let the first angle to return consume the whole fetch budget (observed in
 // the 2026-06-05 smoke run: 1 angle got all slots, 5 angles got zero).
 phase('Search')
-const searchResults = (await parallel(
+// seedResults: [{angle, results:[{url,title,snippet?,relevance}]}] found OUTSIDE the workflow (e.g. via
+// WebFetch of the arXiv API when the per-process WebSearch cap is exhausted). Bypasses the searcher agents.
+const SEED = Array.isArray(_a.seedResults) && _a.seedResults.length ? _a.seedResults : null
+if (SEED) log('seedResults supplied for ' + SEED.length + ' angles — searcher agents SKIPPED')
+const searchResults = SEED ? SEED.map(sr => ({ angle: sr.angle, results: [...sr.results].sort((a, b) => relRank[a.relevance] - relRank[b.relevance]) })) : (await parallel(
   ANGLES.map(angle => () => agent(SEARCH_PROMPT(angle), {
-    label: 'search:' + angle.label, phase: 'Search', schema: SEARCH_SCHEMA, agentType: 'deep-research-tiered:dr-searcher', model: 'sonnet',
+    label: 'search:' + angle.label, phase: 'Search', schema: SEARCH_SCHEMA, agentType: 'dr-searcher', model: 'sonnet',
   }).then(r => {
     if (!r) return null
     log(angle.label + ': ' + r.results.length + ' results')
@@ -295,7 +299,7 @@ const fetchedSources = await parallel(
       label: 'fetch:' + host,
       phase: 'Fetch',
       schema: EXTRACT_SCHEMA,
-      agentType: 'deep-research-tiered:dr-extractor',
+      agentType: 'dr-extractor',
       model: 'sonnet',
     }).then(ext => {
       // User-skip → null; drop it rather than mislabeling it "unreliable".
@@ -357,7 +361,7 @@ const voted = (await parallel(
           label: (isCentral ? 'v' : 'c') + v + ':' + claim.claim.slice(0, 40),
           phase: 'Verify',
           schema: VERDICT_SCHEMA,
-          agentType: isCentral ? 'deep-research-tiered:dr-verifier' : 'deep-research-tiered:dr-checker',
+          agentType: isCentral ? 'dr-verifier' : 'dr-checker',
           model: 'sonnet',
         })
       )
@@ -394,7 +398,7 @@ if (appealTargets.length > 0) {
       label: 'appeal:' + c.claim.slice(0, 40),
       phase: 'Verify',
       schema: VERDICT_SCHEMA,
-      agentType: 'deep-research-tiered:dr-verifier',
+      agentType: 'dr-verifier',
       model: 'opus',
     }).then(v => {
       if (!v) return

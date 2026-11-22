@@ -20,6 +20,14 @@ Load plan, review critically, execute all tasks, report when complete.
 2. Review critically - identify any questions or concerns about the plan
 3. If concerns: Raise them with your human partner before starting
 4. If no concerns: Create TodoWrite and proceed
+5. **Autonomous run? Pin the run contract in RESUME before executing** (the
+   measured-adherence recipe — the near-perfect 2026-07-23 control run had
+   exactly this, the stallers didn't): (a) exactly ONE in-scope item, or an
+   explicit wave list; (b) a BINDING definition of done — "this run is DONE
+   only when …", concrete and checkable; (c) pre-declared deferrals — every
+   user-gated or deliberately-unscheduled item named OUT of scope up front, so
+   any end-of-run "open for you" claim can be audited against a declaration
+   made before work started, not invented to justify stopping.
 
 ### Step 2: Execute Tasks — dispatch waves, don't walk the list
 
@@ -50,9 +58,10 @@ a time despite the orchestration doctrine.)
 ### Step 3: Complete Development
 
 After all tasks complete and verified:
-- Announce: "I'm using the finishing-a-development-branch skill to complete this work."
-- **REQUIRED SUB-SKILL:** Use superpowers:finishing-a-development-branch
-- Follow that skill to verify tests, present options, execute choice
+- Verify: run the project's test and lint gates and show the output — do not
+  claim completion from memory (`verification-before-completion` skill).
+- Present the options to the user — merge, open a PR, or leave the branch — and
+  execute the choice; never merge or push without being asked.
 
 ## When to Stop and Ask for Help
 
@@ -88,6 +97,6 @@ while any unblocked task remains.
 ## Integration
 
 **Required workflow skills:**
-- **superpowers:using-git-worktrees** - REQUIRED: Set up isolated workspace before starting
-- **superpowers:writing-plans** - Creates the plan this skill executes
-- **superpowers:finishing-a-development-branch** - Complete development after all tasks
+- **`using-git-worktrees`** - REQUIRED: Set up isolated workspace before starting
+- **`writing-plans`** - Creates the plan this skill executes
+- **`verification-before-completion`** - REQUIRED: evidence before any "done" claim

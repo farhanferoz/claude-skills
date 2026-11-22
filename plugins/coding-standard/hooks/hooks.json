@@ -1,0 +1,15 @@
+{
+  "description": "Load the coding standard into every session.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/print_standard.sh\""
+          }
+        ]
+      }
+    ]
+  }
+}

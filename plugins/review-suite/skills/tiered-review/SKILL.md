@@ -45,13 +45,13 @@ digraph tier_selection {
 
 ## Tier Playbooks
 
-**Pre-step for every tier:** `simplify` runs first. Never review pre-simplify code — refactor will invalidate the review. If the `simplify` skill isn't available in the current environment, do a brief manual simplification pass over the diff instead (remove obvious duplication, dead code, and naming/structure issues you can fix in a couple minutes), or explicitly note in the summary that this step was skipped — don't silently proceed as if it ran.
+**Pre-step for every tier:** `simplify` runs first. Never review pre-simplify code — refactor will invalidate the review.
 
 ### Tier 1 — Light (1–4 commits, no sensitive surface)
 
 1. Project's test gate passes
 2. `simplify`
-3. Commit and push
+3. `commit` + push
 
 No dedicated review step.
 
@@ -63,13 +63,15 @@ No dedicated review step.
 4. `/second-opinion` on the diff
 5. `fp-check` on candidate findings; drop FALSE_POSITIVEs
 6. Apply true-positives; re-run project test + lint gates
-7. commit, open a PR, and iterate until CI is green
+7. `commit` → `pr-writer`, then address review comments on the PR directly
 
 ### Tier 3 — Release candidate (16+ commits OR public API / on-disk format)
 
 1. Tests pass
 2. `simplify`
-3. Local fan-out — dispatch 4–6 specialist Task agents in parallel:
+3. Local fan-out — 4–6 specialists in parallel, dispatched per the router in
+   `~/.claude/model-routing-policy.md` (pinned role agents, disjoint write sets,
+   findings returned to the root which writes):
    - `differential-review` on full diff
    - `find-bugs` (general bug hunt)
    - `security-review` (input handling, secrets, auth)
@@ -77,18 +79,18 @@ No dedicated review step.
    - Task agent: convention compliance (project CLAUDE.md, repo patterns)
    - Task agent (optional): performance review of hot paths
 4. `fp-check` on every candidate finding; drop FALSE_POSITIVEs
-5. `/second-opinion` — single invocation; the skill picks the highest-priority provider from `~/.claude/second-opinion.config.json` (currently `agy` first, then `codex`, then `gemini-cli`). One run satisfies Tier 3.
+5. `/second-opinion` — single invocation; the skill picks the highest-priority provider from `~/.claude/second-opinion.config.json` (currently `agy` first, then `codex`, then `gemini-cli`). One run satisfies Tier 3 per global CLAUDE.md.
 6. **Adversarial re-run**: one more Task agent framed as "assume there's a bug here, find it"
 7. Apply true-positives; re-run project test + lint gates
-8. commit, open a PR, then the release sequence (version bump → tag → publish) per project conventions
+8. `commit` → `pr-writer` → release sequence (version bump → tag → publish) per project conventions
 
 ### Tier 4 — Critical (auth, migrations, data integrity, irreversible state)
 
 Everything in Tier 3 plus:
 
-1. Property-based tests added BEFORE the review — explores input space, catches what read-by-read review can't
+1. Property-based tests added BEFORE the review (`property-based-testing` skill) — explores input space, catches what review reads-by reads can't
 2. **Fresh-session pattern**: close current Claude Code session, open a new one, then run the Tier 3 pipeline. Purges the conversation context that primed the agent on the implementation — closest local approximation to fully cold context.
-3. `/second-opinion` invoked once (provider order per `~/.claude/second-opinion.config.json`); one run satisfies Tier 4. Only invoke a second provider if the user explicitly asks for parallel cold-context confirmation.
+3. `/second-opinion` invoked once (provider order per `~/.claude/second-opinion.config.json`); per global CLAUDE.md, one run satisfies Tier 4. Only invoke a second provider if the user explicitly asks for parallel cold-context confirmation.
 4. Don't combine with other risky changes in the same release; keep the blast radius narrow
 
 ## Hard Rules

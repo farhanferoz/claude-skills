@@ -1,0 +1,9 @@
+{
+  "name": "research-method",
+  "version": "0.1.0",
+  "description": "Research procedure skills: figure workflow, methodology review, pre-training change checks, and grounding summaries in source notes.",
+  "author": {
+    "name": "Farhan Feroz"
+  },
+  "homepage": "https://github.com/farhanferoz/claude-skills"
+}

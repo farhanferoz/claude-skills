@@ -1,0 +1,17 @@
+{
+  "name": "guards",
+  "version": "0.1.0",
+  "description": "Policy guards that refuse or rewrite risky tool calls and check code hygiene after edits; every decision is logged.",
+  "author": {
+    "name": "Farhan Feroz"
+  },
+  "homepage": "https://github.com/farhanferoz/claude-skills",
+  "userConfig": {
+    "LM_LOOKUP_EXEMPT_GLOBS": {
+      "type": "string",
+      "title": "Paths exempt from the model-settings check",
+      "description": "Colon-separated globs (for example */my-research-repo/*) whose files the code-hygiene check never flags for a model load without a settings lookup.",
+      "default": ""
+    }
+  }
+}

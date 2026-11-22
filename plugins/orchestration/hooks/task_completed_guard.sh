@@ -36,7 +36,21 @@ payload="$(cat 2>/dev/null || true)"
 python3 - "$payload" <<'PY'
 import glob, json, os, sys
 
-def allow():
+def _log(tag, detail=""):
+    """Every decision, ALLOWs included (D14) — an allow here is invisible
+    otherwise, so 'is this guard still wired?' had no answer."""
+    try:
+        import time
+        cfg = os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude")
+        with open(os.path.join(cfg, "task_completed_guard.log"), "a") as fh:
+            fh.write("%s %-12s %s\n" % (time.strftime("%Y-%m-%dT%H:%M:%S"), tag,
+                                        str(detail)[:120]))
+    except Exception:
+        pass
+
+
+def allow(reason="ok"):
+    _log("ALLOW", reason)
     sys.exit(0)
 
 try:
@@ -104,6 +118,7 @@ if open_blockers:
         "Finish or explicitly unblock the dependencies first (TaskUpdate), or "
         "correct the dependency edge if it is stale — do not complete around it.\n"
         % (task_id, label, ", ".join("#" + b for b in open_blockers)))
+    _log("DENY", "#%s blockedBy %s" % (task_id, ",".join(open_blockers)))
     sys.exit(2)
 
 allow()

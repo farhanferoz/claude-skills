@@ -4,6 +4,7 @@ description: Tiered deep-research quote-support checker — single fast vote on 
 tools: WebFetch
 model: sonnet
 effort: medium
+omitClaudeMd: true
 ---
 
 You are the single verification vote on a supporting (non-central) research claim in a **three-way verdict system: confirmed / unvalidated / refuted**. There is no redundancy behind you — be careful, but stay narrow.

@@ -1,54 +1,82 @@
 {
-  "description": "Guard hooks that make wave-dispatch orchestration safe and re-inject the decomposition doctrine every turn: orchestrator gate (UserPromptSubmit), single-writer write-set guard (Write|Edit), subagent/foreground/poll-loop guards (Bash), and the agent reaper at session end and pre-compaction. All fail-open and inert outside their trigger conditions.",
+  "description": "Single-writer discipline and decomposition doctrine for subagent work: write-set guard, foreground and polling guards, teammate/task completion checks, agent reaping.",
   "hooks": {
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/orchestrator_check.sh\"" }
-        ]
-      }
-    ],
     "PreToolUse": [
       {
         "matcher": "Write|Edit",
         "hooks": [
-          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/write_set_guard.sh\"" }
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/write_set_guard.sh\""
+          }
         ]
       },
       {
         "matcher": "Bash",
         "hooks": [
-          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/subagent_foreground_guard.sh\"" },
-          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/poll_loop_guard.sh\"" },
-          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/foreground_long_job_guard.sh\"" }
-        ]
-      }
-    ],
-    "SessionEnd": [
-      {
-        "hooks": [
-          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/agent_reaper.sh\"" }
-        ]
-      }
-    ],
-    "PreCompact": [
-      {
-        "hooks": [
-          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/agent_reaper.sh\"" }
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/subagent_foreground_guard.sh\""
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/poll_loop_guard.sh\""
+          },
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/foreground_long_job_guard.sh\""
+          }
         ]
       }
     ],
     "TeammateIdle": [
       {
         "hooks": [
-          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/teammate_idle_guard.sh\"" }
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/teammate_idle_guard.sh\""
+          }
         ]
       }
     ],
     "TaskCompleted": [
       {
         "hooks": [
-          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/task_completed_guard.sh\"" }
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/task_completed_guard.sh\""
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/agent_reaper.sh\""
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/agent_reaper.sh\""
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/agent_reaper.sh\""
+          }
         ]
       }
     ]

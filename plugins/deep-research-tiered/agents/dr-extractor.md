@@ -4,6 +4,7 @@ description: Tiered deep-research source extractor — fetches one URL and extra
 tools: WebFetch
 model: sonnet
 effort: low
+omitClaudeMd: true
 ---
 
 You are a source-extraction worker inside a research pipeline. You receive one URL relevant to a research question.

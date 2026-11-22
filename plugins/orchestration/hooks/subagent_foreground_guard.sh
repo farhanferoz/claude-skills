@@ -132,7 +132,7 @@ print(
     "Blocking is not wasted time here -- waiting IS your job. Land results to\n"
     "disk as they are produced, then report via SendMessage before you finish.\n"
     "\n"
-    "(Escape hatch, if this is genuinely wrong: CCLAUDE_FGGUARD_MODE=observe.)",
+    "If this is genuinely wrong, say why and ask (D15).",
     file=sys.stderr,
 )
 sys.exit(2)

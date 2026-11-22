@@ -4,38 +4,25 @@ A Claude Code plugin marketplace. Add it once, then install the plugins you want
 
 ```
 /plugin marketplace add farhanferoz/claude-skills
-/plugin install session-continuity@claude-skills
+/plugin install guards@claude-skills
 ```
+
+These plugins are the shareable part of one working Claude Code setup. The map of the whole setup (which practice
+lives in which repository, and one command to install everything) is
+[farhanferoz/claude-code-setup](https://github.com/farhanferoz/claude-code-setup).
+
+Plugin skills are namespaced (`/guards:...`, `/orchestration:writing-plans`), and `skillOverrides` in
+`settings.json` does not apply to them: to drop a plugin's skills, disable the plugin in `/plugin`. Each plugin is
+independent, so install only the ones you want.
 
 ## Plugins
 
-### session-continuity
+### Session continuity: see ccage
 
-Keep a session's state alive across `/clear` and context boundaries.
-
-- **`/checkpoint`** — writes the current state into a lean `RESUME.md` and rolls
-  older detail into `CHANGELOG.md`. Both files are excluded locally via
-  `.git/info/exclude`, so they never land in the repo.
-- **SessionStart hook** — on every session start, including right after `/clear`,
-  `RESUME.md` is read back into context automatically. The loop becomes
-  `/checkpoint` → `/clear` → (state reloaded), with no copy and no paste.
-- **`/keepwarm`** — schedules tiny self-wake turns so the prompt cache stays warm
-  while you step away, avoiding a full cache rewrite on your return. Optionally
-  uses `jq` for per-ping cost estimates; works without it (cost shown as unknown).
-- **session-handoff** — produces a chat-only end-of-session handoff brief so a
-  fresh agent can resume after `/clear`.
-
-`RESUME.md` / `CHANGELOG.md` are personal continuity files. The hook honors a
-`RESUME_SLOT` suffix for parallel same-directory sessions and falls back to plain
-`RESUME.md` when it is unset.
-
-`/checkpoint --final` marks the session's work as genuinely finished: it writes
-a `.session-done` marker at the project root after the usual checkpoint. A
-running `/keepwarm` checks for that marker on every wake and self-stops the
-moment it sees one, instead of pinging a session that's already done. A plain
-`/checkpoint` (no `--final`) clears the marker again, signaling "still
-working" — so returning to a project and checkpointing normally puts
-`/keepwarm` back to work if you resume it.
+`/checkpoint`, `/keepwarm` and the hooks that read `RESUME.md` back after `/clear` now ship with
+[ccage](https://github.com/farhanferoz/ccage), which installs them into every project. The `session-continuity`
+plugin that used to live here was an older second copy and has been retired. The chat-only `session-handoff` skill
+moved to the `session-hooks` plugin below.
 
 ### review-suite
 
@@ -56,13 +43,13 @@ skills.
   - **Tier 4 (critical)** — everything in Tier 3, plus property-based tests
     added before the review and a fresh-session pattern to strip conversation
     context that primed the agent on the implementation.
-- **`find-bugs`**, **`fp-check`**, **`differential-review`**,
-  **`security-review`** — the workers `tiered-review` dispatches; each is also
-  usable standalone.
-- **`second-opinion`** — shells out to an external LLM CLI for genuinely
-  cold-context review. Requires at least one of `codex`, `gemini-cli`, or
-  `agy` installed, plus a `~/.claude/second-opinion.config.json` declaring
-  provider order and model.
+- **`agy-run`** (in `scripts/`) — a wrapper that gives the `agy` CLI an honest exit code; `second-opinion` and
+  `review-panel` call it.
+- **The finders and the second opinion are third-party** and are not bundled. Install them from their authors:
+  `find-bugs` and `security-review` from [getsentry/skills](https://github.com/getsentry/skills) (Apache-2.0);
+  `fp-check`, `differential-review` and `second-opinion` from [trailofbits/skills](https://github.com/trailofbits/skills)
+  (CC-BY-SA-4.0). `second-opinion` needs at least one of `codex`, `gemini-cli` or `agy`, plus a
+  `~/.claude/second-opinion.config.json` declaring provider order and model.
 
 ```
 /plugin install review-suite@claude-skills
@@ -96,6 +83,8 @@ fan-out on cheaper models instead of the session model throughout.
 Turn working notes into a technical report a colleague with no project context
 and no code access can read start to finish.
 
+- **`ai-patterns`** — measures formulaic "AI writing" patterns in prose against a baseline you calibrate from your
+  own writing (`scan.py`). It is not an authorship detector and must not be used as one.
 - **`research-report`** — drafts or revises the document against a genre
   contract (no code references, every named object defined inline with its
   formula, load-bearing math derived, evidence shown as tables/figures), then
@@ -167,14 +156,16 @@ the list one task at a time.
   crash-resumable Workflow.
 - **`subagent-driven-development`** — the in-session variant: fresh subagent per
   task with a spec + quality review after each, dispatched by wave.
-- **Eight guard hooks** (wired automatically on install) that make this safe:
-  `write_set_guard` enforces single-writer discipline (no two subagents write
-  the same path), `orchestrator_check` re-injects the decomposition doctrine
-  every turn, `agent_reaper` records unstopped agents at session end and
-  pre-compaction, plus subagent/foreground/poll-loop guards. All fail-open and
-  inert outside their trigger conditions.
-- **`reference/model-routing-policy.md`** — the router the doctrine points at
-  (which tier for which task shape).
+- **`agent-cost`** — rolls up per-subagent tokens and dollars from the transcripts, and harvests the answer of a
+  dead or stalled worker (`agent_harvest.py`) before anyone re-dispatches it.
+- **`watch-job`** — how to watch a long job from the main session without polling or blocking it.
+- **Guard hooks** (wired automatically on install) that make this safe: `write_set_guard` enforces single-writer
+  discipline (no two subagents write the same path), `agent_reaper` records unstopped agents at session end and
+  before compaction, `teammate_idle_guard` keeps a teammate working while its tasks remain, `task_completed_guard` checks a task's completion,
+  plus foreground-job, subagent-foreground and poll-loop guards. All fail open and are inert outside their trigger
+  conditions. (A per-turn doctrine re-injection hook used to ship here; it was removed because repeating the
+  doctrine every turn did not change behaviour.)
+- The routing policy the doctrine points at is in the `workers` plugin.
 
 The three skills are **modified forks of [obra/superpowers](https://github.com/obra/superpowers)**
 (MIT, © 2025 Jesse Vincent) — sequential execution was replaced with wave
@@ -202,6 +193,77 @@ but the guards are what make parallel wave-dispatch safe).
 
 ```
 /plugin install orchestration@claude-skills
+```
+
+### guards
+
+Policy guards that refuse or rewrite risky tool calls before they run, and check code after it is written. Each one
+logs every decision, allows included, to `$CLAUDE_CONFIG_DIR/<guard>.log`, and each refusal names the correct action.
+
+- **Before a Bash call:** `timeout_kill_guard` adds `-k 5` to a bare `timeout` (a child that ignores SIGTERM otherwise
+  outlives its cap); `self_match_kill_guard` stops a `pkill -f`/`pgrep -f` whose pattern also matches the shell that
+  runs it; `commit_provenance_guard` keeps AI/tool provenance out of commit messages and committed files;
+  `secret_print_guard` (Bash, Read, Grep) refuses to print secret files or decrypted parameters into the transcript;
+  `test_scope_guard` keeps test runs narrow and refuses a re-run of tests that already passed on an unchanged tree;
+  `agy_print_guard` catches `agy -p` reporting a success it did not have; `approval_prompt_guard` refuses command
+  shapes that make Claude Code stop for a human approval even under `bypassPermissions`.
+- **Before an Agent, SendMessage or Workflow call:** `agent_dispatch_guard` asks a worker to earn its brief (run time
+  or an independent reader); `agent_fanout_cap` caps parallel fan-out; `agent_worktree_base_guard` refuses a worktree
+  that would start from a stale base; `workflow_budget_guard` refuses a workflow that carries no budget.
+- **Before a Write:** `clutter_guard` refuses scratch-looking file names in a repository (`lib/junk_names.py`).
+- **After a Write or Edit:** `code_hygiene_check` flags copied code (`scripts/dupcheck.py`), test growth
+  (`hooks/test_growth_check.py`) and model loads that skip a settings lookup.
+- **Setting:** `LM_LOOKUP_EXEMPT_GLOBS` (asked for when you enable the plugin; default empty) lists colon-separated
+  path globs the model-load check never flags.
+- Every guard with a `*.selftest.sh` beside it can be checked with `bash <name>.selftest.sh`.
+
+```
+/plugin install guards@claude-skills
+```
+
+### workers
+
+Model-pinned agents so the tier of each subagent is set by its definition, not by the session: `task-worker`
+(Sonnet, high effort), `task-worker-medium` (Sonnet, medium), `utility-worker` (Haiku, low), `adjudicator` (Opus,
+extra-high), plus `claude` and `general-purpose` overrides. `reference/model-routing-policy.md` says which to use for
+which task shape, with measured costs.
+
+```
+/plugin install workers@claude-skills
+```
+
+### coding-standard
+
+One coding standard (reuse before writing, one responsibility per unit, settings instead of constants, types, errors,
+performance and memory, tests, style, briefs and reviews), put into every session's context by a `SessionStart`
+hook. A plugin's own `CLAUDE.md` is not loaded, so the hook is how it reaches the model. If you already load your own
+standard from `CLAUDE.md` or `.claude/rules/`, do not install this as well: it would load twice.
+
+```
+/plugin install coding-standard@claude-skills
+```
+
+### session-hooks
+
+Conveniences that never block: a cost report at session start (uses [tokenol](https://github.com/farhanferoz/tokenol)
+when installed), tokenol start and stop, session-end cleanup, pruning of old session scratch directories, a report of
+which installed skills were ever used (`scripts/skill_usage_inventory.py`), and the chat-only **`session-handoff`**
+skill.
+
+```
+/plugin install session-hooks@claude-skills
+```
+
+### research-method
+
+Procedures for research work, each written from a real failure: **`figure-workflow`** (from agreeing a figure's
+message to rendered, checked output), **`methodology-review`** (reviewing a research programme's set-up and rigour),
+**`training-change-checks`** (minutes of checks before hours of training after a change to how a model trains), and
+**`ground-before-summarizing`** (resolve claims against source notes, with
+[corpus-search](https://github.com/farhanferoz/corpus-search), before writing a summary).
+
+```
+/plugin install research-method@claude-skills
 ```
 
 ### playwright-agents

@@ -2,12 +2,11 @@
 name: programme-plan
 description: >-
   Structure and maintain the plan for a LONG, MULTI-STRAND programme — several
-  parallel workstreams (strategies, services, migrations, experiments) running
-  for weeks or months, where findings decay and many agents touch the same
-  files. Use when starting such a programme, when an existing plan has drifted
-  from reality, when plan files have multiplied and nobody can say "what do we
-  do next", or when asked to reorganise/clean up a planning mess. NOT for a
-  single multi-step task — use writing-plans for that.
+  parallel workstreams running for weeks or months. Use when starting such a
+  programme, when an existing plan has drifted from reality, when plan files have
+  multiplied and nobody can say "what do we do next", or when asked to reorganise a
+  planning mess. NOT for a single multi-step task — use writing-plans.
+
 ---
 
 # Programme plan — a plan that survives months and many writers
@@ -112,8 +111,8 @@ Ship them as **tests**; a script nobody runs is prose with a shebang.
 
 | Gate | Catches | Reference implementation |
 |---|---|---|
-| **Citations** | a cited path/`file:line` that doesn't resolve | `~/dev/Oasis/StrategyA/tests/test_plan_citations.py` |
-| **Numbers** | a result-number in the plan that the ledger doesn't have | `~/dev/Oasis/StrategyA/tests/test_plan_numbers.py` |
+| **Citations** | a cited path/`file:line` that doesn't resolve | `~/dev/<project>/tests/test_plan_citations.py` |
+| **Numbers** | a result-number in the plan that the ledger doesn't have | `~/dev/<project>/tests/test_plan_numbers.py` |
 
 **The numbers gate matters more, and is the one people skip.** Every expensive error in the
 source programme was a stale *number*, not a stale path — a headline `1.37` when the ledger
@@ -156,10 +155,8 @@ Design notes that make a gate usable rather than ignored:
 writing one ledger are **N writers on one file**, and they will produce exactly the
 incoherence above. **Fan out on compute; serialise on writes.** Workers return findings;
 **the orchestrator writes the plan and the ledger** — that also forces a verification step
-in front of every number that lands. The companion agent rules this relies on — name every
-agent, land each finding to disk the moment it is verified (not at the end), and never let a
-worker self-assign from an unclaimed task list — belong in your own orchestration doctrine or
-hooks; wire them in there.
+in front of every number that lands. See `~/.claude/CLAUDE.md` §Orchestration for the
+full agent rules (lifecycle, incremental landing, no task-list browsing).
 
 ## Who orchestrates
 

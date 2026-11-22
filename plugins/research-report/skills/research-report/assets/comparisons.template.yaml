@@ -1,0 +1,57 @@
+# Comparison manifest — the input to a report's provenance gate (contract rule 11).
+#
+# Every pair below is a contrast the report's PROSE actually makes. A checker
+# beside the document reads each side's own recorded settings and refuses the
+# build when a declared pair disagrees on an axis this file requires to match.
+#
+# WHY THIS EXISTS. Five defects of one root cause reached a built PDF in one
+# session: two numbers set side by side without confirming they were produced
+# under comparable settings. Two cold reads caught none of them, and could not
+# have — a reader cannot see a setting that is not printed on the page.
+#
+# RULES FOR EDITING
+#   * Add a pair when you add a contrast to the prose. A contrast with no pair
+#     here is unchecked, which is how those five happened.
+#   * Every axis is either in `must_match` or in `waive` WITH A WRITTEN REASON.
+#     The checker errors on an axis left undecided — that is the point, not an
+#     inconvenience. Waivers print on every run so a deliberate difference stays
+#     visible instead of decaying into a silent assumption.
+#   * `expect: inadmissible` marks a pair the report deliberately presents as
+#     NOT comparable. It stays checked; the gate then fails only if it turns out
+#     comparable after all.
+
+repo_root: ../..
+
+# --- The cells the prose refers to. -------------------------------------------
+# `dir` is where the cell's own recorded settings live. `what` is how the report
+# refers to it, so a failure message names something a human recognises.
+cells:
+
+  example_arm_a:
+    dir: path/to/eval/output/arm_a
+    what: the anchor model, held-out split
+
+  example_arm_b:
+    dir: path/to/eval/output/arm_b
+    what: the dependence-aware model, held-out split
+
+# --- The contrasts. -----------------------------------------------------------
+comparisons:
+
+  - pair: [example_arm_a, example_arm_b]
+    claim: >-
+      Where in the report this contrast is made, in words. If you cannot write
+      this sentence, the prose is probably not making the contrast you think.
+    must_match:
+      - dataset
+      - split
+      - ensemble_size
+      - checkpoint_rule
+    waive:
+      seed: >-
+        Different seeds are the point of this contrast, not a defect: the
+        comparison is between arms, each averaged over its own seeds.
+
+# --- Axes the checker knows about but this report never contrasts on. ---------
+# Listing them here documents that they were considered. Deleting an axis from
+# the checker is a code change; leaving it undecided in a pair is an error.

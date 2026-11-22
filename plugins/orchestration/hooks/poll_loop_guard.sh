@@ -43,7 +43,31 @@
 #   Enforce denies ONLY the narrow signature; broad-but-not-narrow loops stay
 #   allowed even under enforce.
 #
-# MODES: CCLAUDE_POLLGUARD_MODE = observe (default) | enforce | off.
+# FLIPPED TO ENFORCE 2026-08-10, on 4 weeks of data (not 1) across every cage:
+#   106 logged entries — 68 narrow=1 (would now be denied), 38 narrow=0 (still
+#   allowed). 64% narrow, so a majority rather than the "large majority" the
+#   criterion imagined; the decision rested instead on the narrow population
+#   being unambiguous — `while kill -0 <pid>`, `until grep -q <marker> <out>`,
+#   `while pgrep -f pytest` — every one a foreground wait on an already-running
+#   background job. Worst single case: one agent poll-looped a pytest run 5×
+#   consecutively at timeout=540000 (a trading-research project, 2026-08-09). Per-cage narrow=1:
+#   project A 26, project B 14, project A's walk-forward cage 9, a research project's cages 16, other 3.
+#   Revert with CCLAUDE_POLLGUARD_MODE=observe if false denials appear.
+#
+# WIDENED 2026-08-11 — THE UNROLLED LOOP. The matcher required literal loop
+# syntax (`until … do … sleep … done`), so it keyed on the SHAPE of a poll
+# rather than on what a poll DOES. Live case, first-person, main thread:
+#   Bash("sleep 20; wc -l /…/tasks/<id>.output")
+# — a foreground wait on an already-backgrounded job, i.e. exactly the harm this
+# file measures, with the loop unrolled to a single iteration. It matched no
+# loop keyword and was allowed, even though its target matched this guard's OWN
+# narrow signature (`tasks/*.output`). A poll written as one iteration is still
+# a poll; writing it twice is still not a loop.
+#   ⇒ `sleep N; <anything>` (also `&&` / `||`) is now a recognised shape. The
+#     DENY gate is unchanged — the calibrated narrow signature still decides, so
+#     `sleep 1; echo hi` is logged and allowed, not denied.
+#
+# MODES: CCLAUDE_POLLGUARD_MODE = enforce (default) | observe | off.
 # FAIL-OPEN ALWAYS: any parse error, missing field, or unwritable state allows
 # the call. A guard that wedges a session on bad data is worse than no guard.
 
@@ -56,7 +80,7 @@ import re
 import sys
 import time
 
-MODE = os.environ.get("CCLAUDE_POLLGUARD_MODE", "observe")
+MODE = os.environ.get("CCLAUDE_POLLGUARD_MODE", "enforce")
 
 
 def allow():
@@ -84,7 +108,15 @@ if tool_input.get("run_in_background") is True:
 # Poll-loop shape: `(until|while) … do … sleep … done`, in that order, possibly
 # spanning newlines. `for … sleep … done` is included (seq-based waits).
 POLL = re.compile(r"\b(?:until|while|for)\b[\s\S]*?\bdo\b[\s\S]*?\bsleep\b[\s\S]*?\bdone\b")
-if not POLL.search(cmd):
+# The same wait with the loop unrolled to one iteration: `sleep N; <check>`.
+# Chained with `;`, `&&` or `||`. A trailing bare `sleep N` waits on nothing and
+# is not matched.
+SLEEP_THEN = re.compile(r"\bsleep\s+[\d.]+\s*(?:;|&&|\|\|)\s*\S")
+if POLL.search(cmd):
+    shape = "loop"
+elif SLEEP_THEN.search(cmd):
+    shape = "sleep-then-check"
+else:
     allow()
 
 # The NARROW (high-confidence-harmful) signature: a foreground poll-loop that
@@ -110,8 +142,9 @@ snippet = cmd[:200].replace("\n", " ")
 def note(tag):
     try:
         stamp = time.strftime("%Y-%m-%dT%H:%M:%S")
-        line = "%s %s who=%s narrow=%d refs_output=%d timeout=%s: %s" % (
-            stamp, tag, who, int(narrow), int(polls_output), timeout, snippet)
+        line = "%s %s who=%s shape=%s narrow=%d refs_output=%d timeout=%s: %s" % (
+            stamp, tag, who, shape, int(narrow), int(polls_output), timeout,
+            snippet)
         prev = open(log).read().splitlines()[-499:] if os.path.exists(log) else []
         open(log, "w").write("\n".join(prev + [line]) + "\n")
     except OSError:
@@ -148,13 +181,22 @@ else:
         "\"until <cond>; do sleep 1; done\"). You get ONE completion notification "
         "when it exits and keep working meanwhile; the session never freezes.\n"
         "  2. Or use Monitor() to stream events from the job as they occur.\n"
+        "  3. If the user asked you to watch/monitor/wait on a long job, invoke "
+        "the `watch-job` skill — it is the sanctioned path for exactly this and "
+        "picks the right mechanism for you.\n"
         "You do not need to poll in the foreground to 'wait' — background work "
         "notifies you on completion automatically.")
 
+headline = ("Blocked: a foreground poll-loop blocks the turn."
+            if shape == "loop" else
+            "Blocked: `sleep N; <check>` in the foreground is a poll-loop with "
+            "the loop unrolled to one iteration — it blocks the turn for N "
+            "seconds to look at a job that is already running in the background, "
+            "and the next check means another blocked turn.")
+
 print(
-    "Blocked: a foreground poll-loop blocks the turn.\n\n" + advice +
-    "\n\n(Escape hatch, if this is genuinely a short necessary wait: "
-    "CCLAUDE_POLLGUARD_MODE=off for this call.)",
+    headline + "\n\n" + advice +
+    "\n\nIf this is genuinely a short necessary wait, say why and ask (D15).",
     file=sys.stderr,
 )
 sys.exit(2)

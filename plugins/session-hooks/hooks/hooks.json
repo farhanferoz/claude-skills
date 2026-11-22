@@ -1,0 +1,44 @@
+{
+  "description": "Non-blocking session conveniences: cost report at session start, tokenol start/stop, session-end cleanup, scratch pruning.",
+  "hooks": {
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/session_end_clean.sh\""
+          },
+          {
+            "type": "command",
+            "async": true,
+            "timeout": 40,
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/tokenol_autostop.sh\""
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/cost_report.sh\""
+          },
+          {
+            "type": "command",
+            "async": true,
+            "timeout": 10,
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/tokenol_autostart.sh\""
+          },
+          {
+            "type": "command",
+            "async": true,
+            "timeout": 60,
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/session_scratch_prune.sh\""
+          }
+        ]
+      }
+    ]
+  }
+}

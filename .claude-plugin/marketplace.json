@@ -7,15 +7,6 @@
   },
   "plugins": [
     {
-      "name": "session-continuity",
-      "description": "Durable session state across /clear: /checkpoint writes a lean RESUME.md (rolling older detail into CHANGELOG.md), a SessionStart hook reads it back automatically, /keepwarm holds the prompt cache warm while you step away, and session-handoff produces a chat-only handoff brief.",
-      "author": {
-        "name": "Farhan Feroz"
-      },
-      "category": "productivity",
-      "source": "./plugins/session-continuity"
-    },
-    {
       "name": "deep-research-tiered",
       "description": "Cost-tiered deep research: decompose in-session, approve scope, then a Sonnet-tiered fan-out (search -> fetch -> three-way verify with Opus appeals -> synthesize) producing a cited report. ~10x cheaper than all-Opus deep research; bundles the six dr-* agents it drives.",
       "author": {
@@ -44,7 +35,7 @@
     },
     {
       "name": "orchestration",
-      "description": "Autonomous plan-execution: write an execution-level plan, dispatch it in dependency waves instead of walking the list, and enforce single-writer discipline and the decomposition doctrine with eight guard hooks. Bundles writing-plans, executing-plans, and subagent-driven-development (modified forks of obra/superpowers, MIT) plus the guard hooks and routing policy.",
+      "description": "Autonomous plan-execution: write an execution-level plan, dispatch it in dependency waves instead of walking the list, and enforce single-writer discipline and the decomposition doctrine with its guard hooks. Bundles writing-plans, executing-plans, and subagent-driven-development (modified forks of obra/superpowers, MIT) plus the guard hooks and routing policy.",
       "author": {
         "name": "Farhan Feroz"
       },
@@ -53,7 +44,7 @@
     },
     {
       "name": "review-suite",
-      "description": "Tiered local code review (light -> critical): simplify -> bug/security finders -> false-positive verification -> external second opinion. Bundles tiered-review + find-bugs, fp-check, differential-review, security-review, second-opinion.",
+      "description": "Tiered local code review (light -> critical): simplify -> bug/security finders -> false-positive verification -> external second opinion. Bundles tiered-review and the agy-run wrapper; the finder and second-opinion skills it calls are third-party and install from their own repositories (see README).",
       "author": {
         "name": "Farhan Feroz"
       },
@@ -81,6 +72,51 @@
         "repo": "farhanferoz/playwright-agents"
       },
       "homepage": "https://github.com/farhanferoz/playwright-agents"
+    },
+    {
+      "name": "guards",
+      "description": "Policy guards that refuse or rewrite risky tool calls and check code hygiene after edits; every decision is logged.",
+      "author": {
+        "name": "Farhan Feroz"
+      },
+      "category": "productivity",
+      "source": "./plugins/guards"
+    },
+    {
+      "name": "workers",
+      "description": "Model-pinned worker agents (task-worker, task-worker-medium, utility-worker, adjudicator, claude, general-purpose) and the routing policy that says which to use when.",
+      "author": {
+        "name": "Farhan Feroz"
+      },
+      "category": "productivity",
+      "source": "./plugins/workers"
+    },
+    {
+      "name": "coding-standard",
+      "description": "One coding standard (reuse, design, configurable settings, types, errors, performance, tests, style, reviews) loaded into every session by a SessionStart hook.",
+      "author": {
+        "name": "Farhan Feroz"
+      },
+      "category": "productivity",
+      "source": "./plugins/coding-standard"
+    },
+    {
+      "name": "session-hooks",
+      "description": "Session conveniences: a cost report at session start, tokenol start/stop, session-end cleanup, scratch pruning, and a chat-only session handoff skill.",
+      "author": {
+        "name": "Farhan Feroz"
+      },
+      "category": "productivity",
+      "source": "./plugins/session-hooks"
+    },
+    {
+      "name": "research-method",
+      "description": "Research procedure skills: figure workflow, methodology review, pre-training change checks, and grounding summaries in source notes.",
+      "author": {
+        "name": "Farhan Feroz"
+      },
+      "category": "research",
+      "source": "./plugins/research-method"
     }
   ]
 }

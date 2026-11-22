@@ -1,0 +1,9 @@
+{
+  "name": "coding-standard",
+  "version": "0.1.0",
+  "description": "One coding standard (reuse, design, configurable settings, types, errors, performance, tests, style, reviews) loaded into every session by a SessionStart hook.",
+  "author": {
+    "name": "Farhan Feroz"
+  },
+  "homepage": "https://github.com/farhanferoz/claude-skills"
+}

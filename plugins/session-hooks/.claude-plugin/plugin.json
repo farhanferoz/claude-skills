@@ -1,0 +1,9 @@
+{
+  "name": "session-hooks",
+  "version": "0.1.0",
+  "description": "Session conveniences: a cost report at session start, tokenol start/stop, session-end cleanup, scratch pruning, and a chat-only session handoff skill.",
+  "author": {
+    "name": "Farhan Feroz"
+  },
+  "homepage": "https://github.com/farhanferoz/claude-skills"
+}

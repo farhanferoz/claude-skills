@@ -22,14 +22,18 @@
 % Serif body + sans-serif headings (the standard professional pairing).
 \usepackage[scaled=0.92]{helvet}   % Helvetica-like sans, scaled to Palatino's size
 \usepackage{titlesec}
+% Headings carry their number, matching the numbered table of contents: a
+% contents page that numbers while the body does not leaves a reader unable to
+% follow a cross-reference. Top-level headings are left-aligned, not centred --
+% a centred heading mid-document reads as a page title.
 % The title is the only top-level heading and gets a thin rule beneath; the
 % numbered sections (1, Appendix A, References) are subsections and the 1.1-level
 % headings are subsubsections, sized in clear steps. Heading colour is a dark slate.
 \definecolor{headingslate}{RGB}{34,42,53}
-\titleformat{\section}[block]{\sffamily\LARGE\bfseries\color{headingslate}\filcenter}{}{0pt}{}[{\vspace{3pt}{\color{headingslate}\titlerule[0.4pt]}}]
+\titleformat{\section}[block]{\sffamily\LARGE\bfseries\color{headingslate}}{\thesection}{0.8em}{}[{\vspace{3pt}{\color{headingslate}\titlerule[0.4pt]}}]
 \titlespacing*{\section}{0pt}{0pt}{1.4\baselineskip}
-\titleformat{\subsection}{\sffamily\Large\bfseries\color{headingslate}}{}{0pt}{}
-\titleformat{\subsubsection}{\sffamily\large\bfseries\color{headingslate}}{}{0pt}{}
+\titleformat{\subsection}{\sffamily\Large\bfseries\color{headingslate}}{\thesubsection}{0.7em}{}
+\titleformat{\subsubsection}{\sffamily\large\bfseries\color{headingslate}}{\thesubsubsection}{0.6em}{}
 \titlespacing*{\subsection}{0pt}{1.8\baselineskip}{0.5\baselineskip}
 \titlespacing*{\subsubsection}{0pt}{1.1\baselineskip}{0.3\baselineskip}
 
@@ -37,6 +41,29 @@
 \usepackage{graphicx}
 \usepackage{float}
 \floatplacement{figure}{H}
+
+% --- Captions: one convention, always BELOW the object -----------------------
+%     Pandoc puts a figure's \caption after the image (below) but a longtable's
+%     inside the environment before the first rule (above), so a document ends
+%     up reading with two conventions. caption_below.lua moves the table one out
+%     of the environment and re-emits it as \captionof{table}{...}; the caption
+%     package is what makes \captionof step the counter and format identically.
+\usepackage{caption}
+\captionsetup{font=small,labelfont=bf,skip=6pt}
+
+% --- Data tables set one step down --------------------------------------------
+%     A results table of numbers like "0.0417 ± 0.0012" needs about 1.15in a
+%     column at body size; five of them plus a label column overrun the measure,
+%     and the column algorithm answers by wrapping every cell onto two lines --
+%     splitting a value from its own uncertainty, which is worse than small
+%     type. \small buys back the width and keeps short tables off a page break.
+% A wide numeric table that starts low on a page splits mid-body and repeats its
+% header on the next -- observed on three pages of a real report even after the
+% table itself was made small enough to fit. needspace reserves the room first,
+% so the table moves to the next page whole instead of breaking.
+\usepackage{needspace}
+\usepackage{etoolbox}
+\AtBeginEnvironment{longtable}{\small}
 
 % --- Number every display equation, so any can be cross-referenced ------------
 %     pandoc renders $$...$$ as \[...\]; turn those into numbered equations.

@@ -1,0 +1,9 @@
+{
+  "name": "workers",
+  "version": "0.1.0",
+  "description": "Model-pinned worker agents (task-worker, task-worker-medium, utility-worker, adjudicator, claude, general-purpose) and the routing policy that says which to use when.",
+  "author": {
+    "name": "Farhan Feroz"
+  },
+  "homepage": "https://github.com/farhanferoz/claude-skills"
+}

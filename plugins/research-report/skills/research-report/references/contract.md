@@ -6,15 +6,15 @@ to the codebase and no memory of this work can read it start to finish and follo
 step.
 
 This is the report-specific layer. It sits **on top of** `notes/research/DOC_STANDARD.md`
-(source-first, snapshot integrity, math-as-math, figures, tables) and adds the seven rules
+(source-first, snapshot integrity, math-as-math, figures, tables) and adds the nine rules
 below. It does not restate the base standard.
 
 The acceptance test for every rule is a **cold read** by someone outside the project. The
 author's own re-read does not count: the author's working context silently fills the gaps,
-which is exactly how undefined terms and code references keep shipping. Rules 1, 2, 5 and
-the figure half of rule 7 are checked mechanically (a grep guard); rules 3, 4, the
-"computed-result is shown" half of rule 7, and anything merely cryptic, are checked by a
-fresh-context cold-reader pass.
+which is exactly how undefined terms and code references keep shipping. Rules 1, 2, 5, the figure half of
+rule 7, and the mechanical half of rule 8 are checked by a grep guard; rules 3, 4, the
+"computed-result is shown" half of rule 7, the judgement half of rule 8, and anything
+merely cryptic, are checked by a fresh-context cold-reader pass.
 
 ---
 
@@ -103,12 +103,87 @@ peer could check or a chart that makes it legible.
   results table and figure produced for the report and tick each as *surfaced* or *consciously
   excluded with a reason*. Nothing computed vanishes silently.
 
-### 8. The acceptance test is a cold read
+### 8. The document is built, not just written
+The report has a **spine** — the principle deciding what the sections are — chosen explicitly
+before drafting and declared in a manifest (`<!-- report-structure: ... -->`). Shared
+conventions come before the subjects that use them; parallel subjects get comparable depth
+and comparable evidence; one heading does one job; headings name their subject rather than
+commenting on it; table captions are one sentence and caveats live in the prose.
+
+Full standard, including the three spines and the rule that a correction may not change the
+shape: `references/structure.md`. Checked mechanically for heading register, caption length
+and section-size skew; the rest is the cold reader's ORGANISATION category, which is
+explicitly **not** a style-preference class.
+
+The failure this prevents is distinct from every other rule here: it is what happens to a
+report that is *grown* rather than authored, where each correction is right and the shape
+is wrong. No per-sentence gate can see it.
+
+### 9. The acceptance test is a cold read
 The report is done only when a reader with no project context and no code access can
 follow it cold. Checked by: (a) the grep guard for rules 1, 2, 5 and figure coverage
 (rule 7); (b) a fresh-context cold-reader pass for rules 3, 4, the "is the computed result
 actually shown" half of rule 7, and anything cryptic. Whatever the cold reader flags as
 unfamiliar feeds back into the guard's denylist, so the same word never ships twice.
+
+### 10. Every figure declares a spec before it is drawn
+Before any plotting code runs, the figure gets two declarations, not one — what it is
+built out of, and what it is claiming.
+
+- **Anatomy — mechanically checkable.** The parts it must carry: a legend, a colorbar
+  wherever colour encodes a quantity, axis labels with units. State this before drawing,
+  because a missing part is easy for a reader to miss too: two full cold reads passed a
+  document whose figures carried no legend and no colorbar, since a reader judging content
+  does not separately audit for a missing part.
+- **Semantics — declared so it can be reviewed.** What the encoding *means*. For a colour
+  scale: its normalisation, its range, and what a dark cell tells the reader. A colour
+  scale that divides each row by that row's own noise makes a row with tight agreement
+  light up on differences that are practically minor — a real design decision, but one that
+  was never written down as a decision, so it could never be reviewed as one.
+
+- **Legibility is judged at 150 dpi or better — never below.** Rendering pages at 66 dpi
+  to check layout is fine and cheap; concluding from that render that a figure's labels are
+  unreadable is not. On 2026-09-10 a case figure was DELETED on exactly that evidence and
+  the labels were perfectly legible at 200 dpi. Layout checks may use any resolution;
+  legibility checks have a floor.
+- **A borrowed figure carries text no grep can see.** Internal codes reached a built PDF
+  twice in one session inside images — a legend reading internal cell codes, and a title
+  bar carrying a cell code and a metric key — while every search over the markdown came
+  back clean. Any figure not drawn by this report's own scripts is declared in the
+  pre-draft register as inspected, or redrawn from its source values. The guard refuses an
+  undeclared one.
+- **Let figures float unless you have a reason.** Pinning every float in place packed the
+  2026-09-10 note worse, not better: one page came out 45% empty. Neither `[H]` nor `htbp`
+  is right universally, so the build prints a page-fill report and you look at what it
+  says rather than choosing in advance.
+
+Figure code consults the machine's `dataviz` skill before the first line of plotting code.
+
+### 11. Every contrast the prose makes is declared, and every axis is decided
+A report that sets two measured numbers side by side is claiming they are comparable. That
+claim is checkable and must be checked mechanically, because it fails silently: five defects
+of one root cause reached a built PDF in a single session, every one of them two numbers
+compared without confirming they were produced under comparable settings, and two cold reads
+did not catch any of them — a reader cannot see a setting that is not on the page.
+
+So the report keeps a manifest beside it (`comparisons.yaml`) naming every pair its prose
+contrasts, and a checker that reads each side's own recorded settings and refuses the build
+when a declared pair disagrees on an axis the manifest requires to match.
+
+Two rules carry the weight:
+
+- **Every axis is either required to match or explicitly waived with a written reason.**
+  There is no third state, so an axis cannot go unchecked because nobody considered it. Every
+  waiver prints on every run: a deliberate difference stays visible instead of decaying into a
+  silent assumption.
+- **A contrast with no entry in the manifest is unchecked**, which is exactly how those five
+  defects happened. Add the pair when you add the sentence.
+
+What makes two numbers comparable is project-specific — checkpoints, ensemble sizes, data
+splits, evaluation configs — so the CHECKER belongs to the project, not to this skill. The
+build looks for `provenance_check.py` beside the document and refuses if it exits non-zero.
+A worked implementation, 800-odd lines against one project's evaluation configs, lives with
+the ARFC report in this repository; `assets/comparisons.template.yaml` is the starting shape.
 
 ---
 

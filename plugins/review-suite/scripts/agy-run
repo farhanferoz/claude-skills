@@ -1,0 +1,163 @@
+#!/usr/bin/env bash
+# agy-run — run `agy --print` with honest exit codes and a record of what it actually did.
+#
+# THE DEFECT (measured 2026-09-03, five consecutive runs): `agy -p` EXITS 0 when a tool is
+# auto-denied in headless mode, and its entire stdout is one line:
+#   jetski: no output produced — a tool required the "X" permission that headless mode
+#   cannot prompt for, so it was auto-denied.
+# That is indistinguishable from "there was nothing to do" — and it is NOT the same thing,
+# because side effects may already have landed before the denial. In those five runs the
+# stdout was byte-identical while the actual outcomes were: (1) seven files staged,
+# (2) A GIT COMMIT CREATED, (3) nothing, (4) a script written and chmod +x'd, (5) nothing.
+# A caller that reads exit 0 as "no change" will double-apply work or skip verification.
+#
+# EXIT CODES
+#   77  a tool was auto-denied — a permission is missing (the run is INCOMPLETE)
+#   78  empty output and no denial marker — suspicious silence, treat as unproven
+#   *   otherwise agy's own exit code, passed through
+#
+# Also prints "what agy actually did" from agy's own transcript, which is the only reliable
+# record of the run. Use --explain-denial to print just that, for the most recent session.
+set -uo pipefail
+
+BRAIN="${AGY_BRAIN_DIR:-$HOME/.gemini/antigravity-cli/brain}"
+TAIL_N="${AGY_RUN_TAIL:-12}"
+DEFAULT_PRINT_TIMEOUT="${AGY_RUN_PRINT_TIMEOUT:-30m}"
+
+newest_transcript() {
+  local d; d="$(ls -1dt "$BRAIN"/*/ 2>/dev/null | head -1)"
+  [ -n "$d" ] || return 1
+  printf '%s' "${d}.system_generated/logs/transcript_full.jsonl"
+}
+
+show_actions() {
+  local f; f="$(newest_transcript)" || return 0
+  [ -f "$f" ] || return 0
+  printf -- '--- what agy actually did (last %s tool calls, from its own transcript) ---\n' "$TAIL_N" >&2
+  python3 - "$f" "$TAIL_N" >&2 <<'PY'
+import json, sys
+path, n = sys.argv[1], int(sys.argv[2])
+calls = []
+for line in open(path, errors="replace"):
+    line = line.strip()
+    if not line:
+        continue
+    try:
+        d = json.loads(line)
+    except Exception:
+        continue
+    for tc in (d.get("tool_calls") or []):
+        a = tc.get("args") or {}
+        tgt = a.get("CommandLine") or a.get("TargetFile") or a.get("AbsolutePath") or ""
+        calls.append((tc.get("name") or "?", str(tgt)))
+for name, tgt in calls[-n:]:
+    print("  %-16s %s" % (name, tgt[:160]))
+if not calls:
+    print("  (no tool calls recorded in this session)")
+PY
+  printf -- '--- transcript: %s\n' "$f" >&2
+}
+
+salvage_writes() {
+  # A DENIED write still records its full intended content in the transcript, as
+  # write_to_file's CodeContent. Redoing the work instead of harvesting it costs a whole
+  # regeneration and, for anything the model composed rather than copied, may not reproduce.
+  # (Learned the hard way 2026-09-03: a 3,847-byte file was regenerated from scratch when the
+  # exact bytes were already on disk in the transcript.) So: recover every intended write whose
+  # content is NOT already at its target, and tell the caller where the recovered copy is.
+  local f; f="$(newest_transcript)" || return 0
+  [ -f "$f" ] || return 0
+  local dir="${AGY_RUN_SALVAGE_DIR:-${TMPDIR:-/tmp}/agy-salvage/$(date +%Y%m%d-%H%M%S)-$$}"
+  python3 - "$f" "$dir" >&2 <<'PY_SALVAGE'
+import json, os, sys
+path, outdir = sys.argv[1], sys.argv[2]
+intended = {}                      # target -> content (last write wins)
+for line in open(path, errors="replace"):
+    line = line.strip()
+    if not line:
+        continue
+    try:
+        d = json.loads(line)
+    except Exception:
+        continue
+    for tc in (d.get("tool_calls") or []):
+        if "write" not in (tc.get("name") or "").lower():
+            continue
+        a = tc.get("args") or {}
+        tgt, content = a.get("TargetFile"), a.get("CodeContent")
+        if tgt and content is not None:
+            intended[tgt] = content
+
+rescued = []
+for tgt, content in intended.items():
+    try:
+        on_disk = open(tgt, encoding="utf-8", errors="replace").read()
+    except OSError:
+        on_disk = None
+    if on_disk is not None and on_disk.strip() == content.strip():
+        continue               # already landed; nothing to salvage
+    os.makedirs(outdir, exist_ok=True)
+    dest = os.path.join(outdir, os.path.basename(tgt))
+    with open(dest, "w", encoding="utf-8") as fh:
+        fh.write(content)
+    rescued.append((tgt, dest, len(content), "MISSING" if on_disk is None else "DIFFERS"))
+
+if rescued:
+    print("--- HARVESTED %d write(s) that did not land — do NOT regenerate these ---" % len(rescued))
+    for tgt, dest, n, why in rescued:
+        print("  %-8s %s" % (why, tgt))
+        print("           recovered %d bytes -> %s" % (n, dest))
+    print("  Review, then move into place rather than asking the model to rewrite it.")
+PY_SALVAGE
+}
+
+if [ "${1:-}" = "--explain-denial" ]; then
+  show_actions
+  salvage_writes
+  exit 0
+fi
+
+# agy's own --print-timeout default is 5m, which silently truncates long work. Supply a
+# larger default unless the caller set one explicitly.
+args=("$@")
+case " ${args[*]} " in
+  *" --print-timeout "*) ;;
+  *) args+=(--print-timeout "$DEFAULT_PRINT_TIMEOUT") ;;
+esac
+
+out="$(mktemp)"; trap 'rm -f "$out"' EXIT
+agy --print "${args[@]}" 2>&1 | tee "$out"
+rc="${PIPESTATUS[0]}"
+
+# Match the denial loosely: several independent substrings, so a reworded message on a future
+# jetski release still trips at least one. If the wording changes completely, the empty-output
+# check below still catches it — the guard degrades to "unproven", never to "fine".
+if grep -qiE 'no output produced|auto-denied|headless mode cannot prompt|permissions\.allow' "$out"; then
+  perm="$(grep -oE 'required the "[^"]+" permission' "$out" | head -1 | sed 's/.*"\(.*\)".*/\1/')"
+  {
+    echo
+    echo "AGY-RUN: THE RUN WAS BLOCKED, NOT COMPLETED — agy exited ${rc} but a tool was auto-denied."
+    [ -n "$perm" ] && echo "  missing permission class: ${perm}"
+    echo "  Work done BEFORE the denial has already landed. Verify real state; do not assume a no-op."
+    echo "  Fix: add an allow-rule to ~/.gemini/antigravity-cli/settings.json under permissions.allow,"
+    echo "       e.g. \"${perm:-command}(<target>)\" — the target is the invoked binary or file path."
+    echo "  NOTE: a freshly written script is never on the allow-list, so running one needs its own rule."
+  } >&2
+  show_actions
+  salvage_writes
+  exit 77
+fi
+
+if [ ! -s "$out" ]; then
+  {
+    echo
+    echo "AGY-RUN: EMPTY OUTPUT with no denial marker (agy exited ${rc}) — treat this run as UNPROVEN."
+    echo "  Either nothing ran, or the denial message changed wording. Check real state before continuing."
+  } >&2
+  show_actions
+  salvage_writes
+  exit 78
+fi
+
+show_actions
+exit "$rc"
