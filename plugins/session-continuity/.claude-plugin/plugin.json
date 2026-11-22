@@ -1,9 +1,0 @@
-{
-  "name": "session-continuity",
-  "version": "0.4.0",
-  "description": "Durable session state across /clear: /checkpoint writes a lean RESUME.md, a SessionStart hook reads it back automatically, /keepwarm holds the prompt cache warm, and session-handoff produces a chat-only handoff brief.",
-  "author": {
-    "name": "Farhan Feroz"
-  },
-  "homepage": "https://github.com/farhanferoz/claude-skills"
-}
