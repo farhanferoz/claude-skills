@@ -17,7 +17,7 @@
         "source": "git-subdir",
         "url": "https://github.com/farhanferoz/ccage.git",
         "path": "plugin",
-        "ref": "v0.26.0"
+        "ref": "v0.27.0"
       },
       "homepage": "https://github.com/farhanferoz/ccage"
     },
